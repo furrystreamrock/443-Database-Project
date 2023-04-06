@@ -59,7 +59,8 @@ class Database {
                 success = curr->get(key, result);
                 if (curr_ind != 0) {
                     //clear any temp trees
-                    curr->clear();
+                    curr->deleteAll();
+                    delete curr;
                 }
                 if (success == true) {
                     return success;
@@ -79,7 +80,7 @@ class Database {
             if (memtable->isFull()) {
                 memtable->inOrderFlush(get_next_file_name());
                 num_files++;
-                memtable->clear();
+                memtable->deleteAll();
             }
 
             return success;
@@ -98,7 +99,8 @@ class Database {
                 curr->scan(min, max, &sub_result);
                 if (curr_ind != 0) {
                     //clear any temp trees
-                    curr->clear();
+                    curr->deleteAll();
+                    delete curr;
                 }
 
                 if (sub_result != nullptr && sub_result->length > 0){
