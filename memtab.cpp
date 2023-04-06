@@ -34,8 +34,24 @@ struct Node
 	Node(int key, int val) : key(key), value(val), height(1), left(nullptr), right(nullptr) {}
 };
 
+static void deleteTree(Node* n)
+{/*
+delete the three rooted at n
+*/
+	if(!n)
+		return;
+	deleteTree(n->right);
+	deleteTree(n->left);
+	delete n;
+}
 
-
+static void deleteList(list_node* n)
+{/*free the linked list*/
+	if(!n)
+		return;
+	deleteList(n->next);
+	delete(n);
+}
 
 class memtab
 {//an augmented avl tree
@@ -332,6 +348,12 @@ class memtab
 			return true;
 		}
 		
+		void deleteAll()
+		{
+			deleteTree(root);
+			root = nullptr;
+		}
+		
 };
 
 
@@ -400,6 +422,10 @@ int main() {
 	}
 	memtab* built = build_from_file("yay.txt");
 	built->printInorder();
+	built->deleteAll();
 	(*built).printInorder();
+	
+	
+	
     return 0;
 }
