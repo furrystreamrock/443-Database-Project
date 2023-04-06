@@ -341,14 +341,14 @@ class memtab
 };
 
 
-/* static memtab* build_from_file(const char* filename) 
+static memtab* build_from_file(const char* filename) 
 {//###note to self### need to set some global var for memory cap on memtable!
 
 //Builds a memtable from filename and returns a pointer to the created memtable in memory.
 //returns nullptr if it fails. 
 
 	using namespace std;
-	memtab table(10);
+	memtab* table = new memtab(10);
 	
 	std::ifstream f(filename);
 	if(!f.is_open())
@@ -365,10 +365,10 @@ class memtab
 		std::getline(f, val);
 		//std::cout << "Val: " << val << std::endl; 
 		
-		table.insert(stoi(key), stoi(val));
+		table->insert(stoi(key), stoi(val));
 	}
-	return &table;
-}; */
+	return table;
+};
 
 
 //for testing the tree
@@ -402,7 +402,10 @@ int main() {
 			std::cout << s->key << "," << s->value << "|";
 			s = s->next;
 		}
+		std::cout<<std::endl;
 	}
-	//build_from_file("yay.txt");
+	memtab* built = build_from_file("yay.txt");
+	built->printInorder();
+	(*built).printInorder();
     return 0;
 }
