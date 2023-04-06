@@ -295,7 +295,7 @@ class memtab
 		}
 		
 		
-		bool scan(int key1, int key2, list_node* result)
+		bool scan(int key1, int key2, list_node** result)
 		{/*
 		returns linked list of key, value pairs within range on success
 		*/
@@ -307,7 +307,7 @@ class memtab
 				end = key1;
 			}
 			
-			list_node* head = treeToBuffer(root);	
+			list_node* head = treeToBuffer(root);		
 			
 			while(head && head-> key < start)
 			{
@@ -325,7 +325,7 @@ class memtab
 			tail->next = nullptr;
 			head->length = count;
 			
-			result = head;
+			*result = head;
 			list_node* traverse = head;
 			
 			while(traverse)
@@ -395,9 +395,8 @@ int main() {
 	
 	std::cout << "scan start" << std::endl;
 	list_node* s;
-	if(tab0.scan(2,4, s))
+	if(tab0.scan(2,4, &s))
 	{
-		std::cout << s->length << "AKLSJHDLSAHDLAS";
 		while(s)
 		{
 			std::cout << s->key << "," << s->value << "|";
