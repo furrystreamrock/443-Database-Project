@@ -320,6 +320,7 @@ class memtab
 			int count = 1;
 			while(tail->next && (tail->next)-> key < end)
 			{
+				count++;
 				tail = tail->next;
 			}
 			tail->next = nullptr;
@@ -327,13 +328,6 @@ class memtab
 			
 			*result = head;
 			list_node* traverse = head;
-			
-			while(traverse)
-			{
-				std::cout << traverse->key << "," << traverse->value << "|";
-				traverse = traverse->next;
-			}
-			std::cout << std::endl;
 			
 			return true;
 		}
