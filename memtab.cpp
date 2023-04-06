@@ -141,8 +141,6 @@ class memtab
 		{
 			/*
 			Returns a linked-list of integers representing this tree.
-			KV are kept sequentially, every other index is a KV pair.
-			E.g : K1|V1|K2|V2 ...
 			*/
 			list_node* leftLinked;
 			list_node* rightLinked;
@@ -170,8 +168,41 @@ class memtab
 			return head;
 		}
 	
-		
+		Node* binTreeSearch(int key, Node* n)
+		{
+			/*
+			Find the value associated with key in this memtable (AVL tree)
+			returns a pointer to the node if it exists
+			returns a null pointer if the requested key is not in the table
+			*/
+			if(!n)
+				return nullptr;
+			//std::cout << n->key << "  " << n->value << std::endl;
+			if(n->key == key)
+				return n;
+			
+			if(n->key > key)
+				return binTreeSearch(key, n->left);
+			
+			if(n->key < key)
+				return binTreeSearch(key, n->right);
+			
+		}
 	public:
+		bool isFull()
+		{
+			return !(entries < memtable_size);
+		}
+		
+		int getSize()
+		{
+			return memtable_size;
+		}
+		
+		int getEntries()
+		{
+			return entries;
+		}
 		memtab(int cap)
 		{
 			this->memtable_size = cap;
@@ -197,7 +228,7 @@ class memtab
 			return 0;
 		}
 		  
-		void print_inorder()
+		void printInorder()
 		{
 			/*
 			For debugging: print tree in order of keys
@@ -248,15 +279,74 @@ class memtab
 			return;
 		}
 		
+		bool get(int key, int* result)
+		{/*
+		returns true on success, false on failure
+		stores the resulting value pair in the int addr provided
+		*/
+			Node* val = binTreeSearch(key, root);
+			if(val)
+			{
+				*result = val->value;
+				return true;
+			}	
+			*result = -1;
+			return false;
+		}
+		
+		
+		bool scan(int key1, int key2, list_node* result)
+		{/*
+		returns linked list of key, value pairs within range on success
+		*/
+			int start = key1;
+			int end = key2;
+			if(key1 > key2)
+			{
+				start = key2;
+				end = key1;
+			}
+			
+			list_node* head = treeToBuffer(root);	
+			
+			while(head && head-> key < start)
+			{
+				head = head->next;
+			}
+			
+			if(!head)//failed to find a key in range
+				return false;
+			list_node* tail = head;
+			int count = 1;
+			while(tail->next && (tail->next)-> key < end)
+			{
+				tail = tail->next;
+			}
+			tail->next = nullptr;
+			head->length = count;
+			
+			result = head;
+			list_node* traverse = head;
+			
+			while(traverse)
+			{
+				std::cout << traverse->key << "," << traverse->value << "|";
+				traverse = traverse->next;
+			}
+			std::cout << std::endl;
+			
+			return true;
+		}
+		
 };
 
 
-static memtab* build_from_file(const char* filename) 
+/* static memtab* build_from_file(const char* filename) 
 {//###note to self### need to set some global var for memory cap on memtable!
-/*
-Builds a memtable from filename and returns a pointer to the created memtable in memory.
-returns nullptr if it fails. 
-*/
+
+//Builds a memtable from filename and returns a pointer to the created memtable in memory.
+//returns nullptr if it fails. 
+
 	using namespace std;
 	memtab table(10);
 	
@@ -278,7 +368,7 @@ returns nullptr if it fails.
 		table.insert(stoi(key), stoi(val));
 	}
 	return &table;
-};
+}; */
 
 
 //for testing the tree
@@ -292,8 +382,28 @@ int main() {
     tab0.insert(6, 886);
 
     std::cout << "In order traversal of key/value:" << std::endl;
-    tab0.print_inorder();
-	tab0.inOrderFlush("yay.txt");
-	build_from_file("yay.txt");
+    tab0.printInorder();
+	//tab0.inOrderFlush("yay.txt");
+	
+	
+	std::cout << "Search for key 5:" << std::endl;
+	bool a = false;
+	int b;
+	a = tab0.get(3, &b);
+	std::cout << a << std::endl;
+	std::cout << b << std::endl;
+	
+	std::cout << "scan start" << std::endl;
+	list_node* s;
+	if(tab0.scan(2,4, s))
+	{
+		std::cout << s->length << "AKLSJHDLSAHDLAS";
+		while(s)
+		{
+			std::cout << s->key << "," << s->value << "|";
+			s = s->next;
+		}
+	}
+	//build_from_file("yay.txt");
     return 0;
 }
