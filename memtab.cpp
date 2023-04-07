@@ -207,6 +207,7 @@ class memtab
 	public:
 		bool isFull()
 		{
+			std::cout << entries << "/" << memtable_size << std::endl;
 			return !(entries < memtable_size);
 		}
 		
@@ -266,7 +267,8 @@ class memtab
 			list_node* a = treeToBuffer(root);
 			std::cout << "flush start, total length: " << a->length << std::endl;
 			
-			int buf[a->length*2];
+			int buf_len = a->length*2;
+			int* buf = (int*)malloc(buf_len * sizeof(int));
 			int count = 0;
 			while(a)//populate the buffer with data
 			{
@@ -281,14 +283,12 @@ class memtab
 			}
 	
 			std::stringstream entries;
-			for(int i = 0; i < (sizeof(buf)/sizeof(int))/2; i++)
+			for(int i = 0; i < count; i++)
 			{
-			
 				entries << buf[i*2] << "," << buf[i*2+1] << "\n";
-			
 			}
 			std::string file_out = entries.str();
-			std::ofstream output(filename);
+			std::ofstream output((std::string)filename);
 			output << file_out;
 			output.close();
 					
@@ -352,6 +352,7 @@ class memtab
 		{
 			deleteTree(root);
 			root = nullptr;
+			entries = 0;
 		}
 		
 };
@@ -388,6 +389,7 @@ static memtab* build_from_file(const char* filename)
 
 
 //for testing the tree
+/*
 int main() {
     memtab tab0(6);
     tab0.insert(1, 881);
@@ -429,3 +431,4 @@ int main() {
 	
     return 0;
 }
+*/
