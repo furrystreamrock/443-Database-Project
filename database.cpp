@@ -16,17 +16,18 @@ class Database {
     int num_files;
 
     private:
-        const char* get_file_by_ind(int i){
-            return (std::to_string(i) + ".sst").c_str();
+        std::string get_file_by_ind(int i){
+            return std::to_string(i) + (std::string)(".sst");
         }
 
-        const char* get_next_file_name(){
-            return (std::to_string(num_files) + ".sst").c_str();
+        std::string get_next_file_name(){
+            return std::to_string(num_files) + (std::string)(".sst");
         }
 
-        const char* get_db_file_name(){
-            return (database_name + ".db").c_str();
+        std::string get_db_file_name(){
+            return database_name + (std::string)(".db");
         }
+        
 
         list_node* get_list_end(list_node* start){
             int len = start->length;
@@ -50,6 +51,14 @@ class Database {
     
     public: 
 
+		Database(int cap)
+		{
+            database_name = "";
+			memtable_size = cap;
+            memtable = nullptr;
+            num_files = 0;
+		}
+
         int get(int key, int* result) {
             memtab* curr = memtable;
             int success = false;
@@ -59,7 +68,8 @@ class Database {
                 success = curr->get(key, result);
                 if (curr_ind != 0) {
                     //clear any temp trees
-                    curr->clear();
+                    curr->deleteAll();
+                    delete curr;
                 }
                 if (success == true) {
                     return success;
@@ -68,7 +78,9 @@ class Database {
                 if (curr_ind >= num_files) {
                     return success;
                 }
-                curr = build_from_file(get_file_by_ind(curr_ind));
+	            std::cout << "INT " << curr_ind << " NAME: " << get_file_by_ind(curr_ind) << std::endl;
+                
+                curr = build_from_file(get_file_by_ind(curr_ind).c_str());
                 curr_ind++;
             }
         }
@@ -77,9 +89,9 @@ class Database {
             int success = memtable->insert(key, val);
             
             if (memtable->isFull()) {
-                memtable->inOrderFlush(get_next_file_name());
+                memtable->inOrderFlush(get_next_file_name().c_str());
                 num_files++;
-                memtable->clear();
+                memtable->deleteAll();
             }
 
             return success;
@@ -98,7 +110,8 @@ class Database {
                 curr->scan(min, max, &sub_result);
                 if (curr_ind != 0) {
                     //clear any temp trees
-                    curr->clear();
+                    curr->deleteAll();
+                    delete curr;
                 }
 
                 if (sub_result != nullptr && sub_result->length > 0){
@@ -114,7 +127,7 @@ class Database {
                 if (curr_ind >= num_files) {
                     break;
                 }
-                curr = build_from_file(get_file_by_ind(curr_ind));
+                curr = build_from_file(get_file_by_ind(curr_ind).c_str());
                 curr_ind++;
             }
             
@@ -134,9 +147,7 @@ class Database {
         int open(const char* database_name) {
             this->database_name = database_name;
 
-            //TODO: memtable_size?
-            memtable_size = 10;
-
+ 
 
             //check if database alr exists
             std::ifstream f(get_db_file_name());
@@ -158,23 +169,58 @@ class Database {
                 if (buffer_empty == 1) { 
                     memtable = new memtab(memtable_size);
                 } else {
-                    memtable = build_from_file(get_file_by_ind(num_files));
+                    memtable = build_from_file(get_file_by_ind(num_files).c_str());
                 }
             }
+
+            //TODO: report errors
+            return 0;
         }
 
         void close() {
 
             int buffer_empty = 1;
-            if (memtable->getSize() >= 0){
-                memtable->inOrderFlush(get_next_file_name());
+            if (memtable->getEntries() >= 0){
+	            std::cout << "size "<< memtable->getEntries() << std::endl;
+                memtable->inOrderFlush(get_next_file_name().c_str());
                 buffer_empty = 0;
             }
 
             std::ofstream output(get_db_file_name(), std::ofstream::trunc);
 
-            output << num_files << "\n" << buffer_empty;
+            output << num_files << "\n" << buffer_empty << "\n" ;
 
             output.close();
+
+            delete memtable;
         }
 };
+
+
+
+
+//for testing db
+int main() {
+
+    Database* db = new Database(3);
+
+	db->open("testDB");
+
+    db->put(2, 7);
+    db->put(3, 8);
+    db->put(4, 9);
+    db->put(5, 10);
+
+    int result;
+    db->get(2, &result);
+    std::cout << "result: " << result << std::endl;
+
+	db->close();
+
+	db->open("testDB");
+    db->put(1, 2);
+	db->close();
+	
+	
+    return 0;
+}
