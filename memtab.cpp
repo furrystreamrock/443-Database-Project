@@ -274,7 +274,7 @@ class memtab
 			{
 				buf[count*2] = a->key;
 				buf[count*2+1] = a->value;
-				std::string bleh = "false";
+				//std::string bleh = "false";
 				//if (a->next)
 				//	bleh = "true";
 				//std::cout << a->key << "     " << bleh << std::endl;//use for testing
@@ -291,7 +291,7 @@ class memtab
 			std::ofstream output((std::string)filename);
 			output << file_out;
 			output.close();
-					
+			free(buf);
 			return;
 		}
 		
