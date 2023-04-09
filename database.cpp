@@ -4,15 +4,46 @@
 #include <sstream>
 #include <string>
 #include <iostream>
-
 #include "memtab.cpp"
+#include <random>
+#include <time.h>  
+#include <cmath>
+
+
+struct bucket_node
+{//chaining the buckets
+	bucket_node * next;
+	memtab * table;	
+	int entries;
+	bucket_node(): next(nullptr), table(nullptr), entries(0){}
+};
+
+static unsigned char bitHash(int bits, unsigned char key)
+{//we hash the key by choosing some number of leading bits
+	unsigned char mask= 0;
+	for(int i = 0; i < 5; i++) // subroutine to make bit mask
+	{
+		unsigned char temp = mask << 1;
+		mask = temp | 1;
+	}
+	return (unsigned char)(mask & key);
+}
+
 
 class Database {
     std::string database_name;
-
+	
+	//stuff for the buffer
+	const int min_buffer_depth = 3;//allows 2^3 entries, initializes this size
+	const int max_buff_depth = 5;//no more than 32 entries.
+	int curr_buffer_depth;
+	int curr_buffer_entries;
+	int policy; //NOTE TO SELF######: assign policies to ints. (0 is lru, 1 is clock, etc)
+	
     int memtable_size;
     memtab* memtable;
-
+	bucket_node ** buffer_directory;
+	
     int num_files;
 
     private:
@@ -27,7 +58,93 @@ class Database {
         std::string get_db_file_name(){
             return database_name + (std::string)(".db");
         }
-        
+//----------------------------------buffer methods begin-----------------------------------------------
+		void initializeBuffer()
+		{
+			buffer_directory = (bucket_node**)(malloc(pow(2,min_buffer_depth) * sizeof(bucket_node*)));
+			curr_buffer_depth = min_buffer_depth;
+			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
+			{//assign memory for the initial buffer buckets
+				buffer_directory[i] = new bucket_node();
+			}
+			curr_buffer_entries = 0;
+		}
+		
+		void insertIntoBuffer(memtab* table)
+		{//inserts table into buffer, evicts if needed
+		
+			curr_buffer_entries++;//check for space in buffer, evict if needed 
+			if(curr_buffer_entries > pow(2, curr_buffer_depth))
+			{
+				if(curr_buffer_depth >= max_buff_depth)
+					evict();
+				else
+					doubleBufferSize();
+			}
+		
+			unsigned char hash = bitHash(curr_buffer_depth, table->key);
+			
+			bucket_node* curr_head = buffer_directory[int(hash)];
+			while(curr_head->next)
+				curr_head = curr_head->next;
+						
+			if(!curr_head->table)
+			{
+				curr_head->table = (memtab*)malloc(sizeof(memtab));//save this table in heap, referenced to by this bucket node
+				std::memcpy(curr_head->table, table, sizeof(memtab));
+				
+				Node* newRoot = (Node*)(malloc(sizeof(Node)));//in addition to keeping the table in memory, have to traverse the tree and do the same.
+				std::memcpy(newRoot, table->root, sizeof(Node));
+				curr_head->table->root = newRoot;
+				heapifyTree(curr_head->table->root);
+				
+				curr_head->next = new bucket_node();
+			}			
+		}
+		void evict()
+		{//policy dependant
+		}
+		void evict_bucket(bucket_node * n)
+		{//evict a certain memtab
+		
+			freeTree(n->table->root);
+			free(n->table); 
+		}
+		void doubleBufferSize()
+		{
+			curr_buffer_depth++;
+			if(curr_buffer_depth >= max_buff_depth)
+			{
+				curr_buffer_depth--;
+				std::cerr << "Warning, can't double buffer size" << std::endl;
+				return;
+			}
+			
+			bucket_node ** temp = (bucket_node**)(malloc(pow(2, curr_buffer_depth-1) * sizeof(bucket_node)));
+			temp = buffer_directory;
+			//new directory with double the size.
+			buffer_directory = (bucket_node**)(malloc(pow(2,min_buffer_depth) * sizeof(bucket_node*)));
+			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
+			{	
+				buffer_directory[i] = new bucket_node();
+			}
+			//re insert previous directory into the new one.
+			for(int i = 0; i < pow(2, curr_buffer_depth-1); i++)
+			{	
+				bucket_node* curr = temp[i];
+				if(curr->table)
+				{
+					insertIntoBuffer(curr->table);
+					bucket_node* tempnext = curr->next;
+					evict_bucket(curr);
+					curr = tempnext;
+				}
+			}
+			free(temp);
+		}
+		
+//----------------------------------buffer methods end-------------------------------------------------	
+
 
         list_node* get_list_end(list_node* start){
             int len = start->length;
@@ -57,6 +174,8 @@ class Database {
 			memtable_size = cap;
             memtable = nullptr;
             num_files = 0;
+			srand(time(NULL));
+			initializeBuffer();
 		}
 
         int get(int key, int* result) {

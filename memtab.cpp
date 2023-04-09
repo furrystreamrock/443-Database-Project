@@ -3,8 +3,8 @@
 #include <fstream> 
 #include <sstream>
 #include <string>
-#include <iostream>
-
+#include <random>
+#include <cstring>
 struct kv_pair
 {//kv pair
 	int key;
@@ -45,6 +45,38 @@ delete the three rooted at n
 	delete(n);
 }
 
+static void freeTree(Node* n)
+{/*
+free the memory used by a heapified tree at n
+*/
+	if(!n)
+		return;
+	freeTree(n->right);
+	freeTree(n->left);
+	free(n);
+}
+
+static void heapifyTree(Node* n)
+{//save this tree in heap !!!!!!EXCEPT FOR THE ROOT(that is to be done by the calling function)
+	if(!n)
+		return;
+	if(n->left)
+	{
+		Node* newLeft = (Node*)(malloc(sizeof(Node)));
+		std::memcpy(newLeft, n->left, sizeof(Node));
+		n->left = newLeft;
+		heapifyTree(n->left);
+	}
+	if(n->right)
+	{
+		Node* newRight = (Node*)(malloc(sizeof(Node)));
+		std::memcpy(newRight, n->right, sizeof(Node));
+		n->right= newRight;
+		heapifyTree(n->right);
+	}
+	
+}
+
 static void deleteList(list_node* n)
 {/*free the linked list rooted at n*/
 	if(!n)
@@ -53,15 +85,15 @@ static void deleteList(list_node* n)
 	delete(n);
 }
 
+
+
 class memtab
 {//an augmented avl tree
 	private:
 	
 		//class var
-		Node* root;
 		int memtable_size;
 		int entries;
-		
 		
 		//functions 
 		int get_height(Node * n)
@@ -205,6 +237,8 @@ class memtab
 			
 		}
 	public:
+		Node* root;
+		unsigned char key;//used for hashing 
 		bool isFull()
 		{
 			std::cout << entries << "/" << memtable_size << std::endl;
@@ -225,6 +259,7 @@ class memtab
 			this->memtable_size = cap;
 			this->entries = 0;
 			this->root = nullptr;
+			this->key = rand();
 		}
 		
 		int insert(int key, int value)
