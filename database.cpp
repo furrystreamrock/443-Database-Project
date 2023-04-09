@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include "memtab.cpp"
+#include "btree.cpp"
 
 class Database {
     std::string database_name;
@@ -48,6 +49,88 @@ class Database {
                 curr = temp;
             }
         }
+
+
+        kv_pair* binary_search(kv_pair** a, int len, int key){
+            int pivot = (len / 2);
+            if (a[pivot]->key == key) {
+                return *(a + pivot);
+            }
+
+            if (len == 2){ 
+                if (a[0]->key == key) {
+                    return *a;
+                } else if (a[1]->key == key) {
+                    return *(a + 1);
+                } else {
+                    return nullptr;
+                }
+            } else if (len == 1) {
+                if (a[0]->key == key) {
+                    return *a;
+                } else {
+                    return nullptr;
+                }
+            }
+
+            kv_pair* left = binary_search(a, pivot, key);
+            if (left != nullptr) {
+                return left;
+            }
+            kv_pair* right = binary_search(a + pivot + 1, len - pivot, key);
+            return right;
+        }
+
+        
+        btree* make_btree(kv_pair* array, int len){
+            btree* t = new btree();
+
+            for (int i = 0; i < len; i++)
+            {
+                t->insert(&array[i]);
+            }
+
+            return t;
+        }
+
+        void cleanup_sst_btree(btree* tree, kv_pair* array){
+            tree->clear_all();
+            free(array);
+        }
+
+        kv_pair* load_sst_as_list(const char* filename, int* len){
+            using namespace std;
+            
+            std::ifstream f(filename);
+            if(!f.is_open())
+            {
+                std:cout << "Failed to open file: " << filename << std::endl;
+                return nullptr;
+            }
+            std::string key, val;
+
+            int num_lines = std::count(std::istreambuf_iterator<char>(f), 
+                std::istreambuf_iterator<char>(), '\n');
+
+            std::cout << "Begin build "<< filename << std::endl;
+
+            kv_pair* pairs = (kv_pair*)( malloc(sizeof(kv_pair) * num_lines) );
+
+            int i = 0;
+            while(std::getline(f, key, ','))
+            {
+                std::getline(f, val);
+                
+                pairs[i].key = stoi(key);
+                pairs[i].value = stoi(val);
+                
+                i++;
+            }
+
+            *len = i;
+            return pairs;
+        }
+
     
     public: 
 
@@ -104,7 +187,7 @@ class Database {
             list_node* total_result;
 
             int curr_ind = 0;
-            while (true) {
+            if (curr_ind == 0) {
                 list_node* sub_result;
                 //TODO: scan 'curr' and add stuff to linked list
                 curr->scan(min, max, &sub_result);
@@ -124,11 +207,37 @@ class Database {
                     }
                 }
 
-                if (curr_ind >= num_files) {
-                    break;
-                }
-                curr = build_from_file(get_file_by_ind(curr_ind).c_str());
+                //if (curr_ind >= num_files) {
+                //    break;
+                //}
+                //curr = build_from_file(get_file_by_ind(curr_ind).c_str());
                 curr_ind++;
+            }
+
+            for (int i = 0; i < num_files; i++) {
+                int num_pairs;
+                kv_pair* pairs = load_sst_as_list(get_file_by_ind(curr_ind).c_str(), &num_pairs);
+
+                btree* tree = new btree();
+                tree->treeify(pairs, num_pairs);
+
+                //kv_pair* min_pair = binary_search(&pairs, num_pairs, min);
+                //kv_pair* max_pair = binary_search(&pairs, num_pairs, max);
+                kv_pair* min_pair; kv_pair* max_pair;
+                bool success = tree->scan(min, max, &min_pair, &max_pair);
+                kv_pair* curr = min_pair;
+
+                if (success == true) {
+                    while (curr != max_pair + 1) {
+                        kv_pair* next = new kv_pair(curr->key, curr->value);
+                        result[result_length] = 
+
+                        curr++;
+                    }
+                }         
+
+                tree->clear_all();       
+                
             }
             
             *result = (kv_pair*)malloc(sizeof(kv_pair) * total_result->length);

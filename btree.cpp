@@ -50,6 +50,17 @@ class btree {
             }
         }
         
+        btree* clear(BTNode* node){
+            if (node->is_leaf) {
+                //does not delete kv_pairs
+                delete node;
+                return;
+            }
+			for (int i = 0; i < node->num_keys + 1; i++) {
+                clear((BTNode*)(node->child[i]));
+            }
+        }
+        
 	public:
 
         bool get(int key, int* val){
@@ -164,81 +175,9 @@ class btree {
 
 
 
-        btree* clear(BTNode* node){
-            if (node->is_leaf) {
-                //does not delete kv_pairs
-                delete node;
-                return;
-            }
-			for (int i = 0; i < node->num_keys + 1; i++) {
-                clear((BTNode*)(node->child[i]));
-            }
+        btree* clear_all(){
+            clear(root);
         }
-
-/*
-        void build_from_sorted(kv_pair* array, int len, BTNode* parent, int child_index){
-            int num_children_max = max_keys + 1;
-            int offset = 0;
-
-            BTNode* node = new BTNode();
-            if (parent == nullptr) {
-
-            } else {
-                parent->child[child_index] = node;
-            }
-
-            
-            int divisions = std::max( (int)(ceil(num_children_max/2) - 1), (int)(ceil(len / max_keys)) );
-            divisions = std::min(divisions, num_children_max);
-			for (int i = 0; i < divisions; i++)
-            {
-                int remainder = len - offset;
-                int split_len = ceil(static_cast<double>(remainder) / (num_children_max - i));
-                if (split_len > num_children_max) {
-                    node->is_leaf = false;
-                    if (i < divisions - 1) {
-                        node->keys[i] = array[split_len - 1].key;
-                    }
-                    split(array + offset, split_len, node, i);
-                } else {
-                    node->is_leaf = true;
-                    if (i < divisions - 1) {
-                        node->keys[i] = array[split_len - 1].key;
-                        node->child[child_index] = &array[split_len - 1];
-                    }
-                }
-
-                offset = offset + split_len;
-            }
-        }
-
-        btree* build_from_sorted_2(kv_pair* array, int len, BTNode* parent, int child_index, int target_height){
-            
-            int B = max_keys; //max keys
-            int m = max_keys + 1; //max children
-            int n = len;
-
-            int height = target_height;
-            if (target_height == -1) {
-                height = log2( static_cast<double>(n)/static_cast<double>(B) ) / log2(m);
-            }
-
-            //you can just split approx. equally into as many children as you can until you 
-            //dont have enough keys to fill the current row and half of the descendant rows 
-            int divisions = std::min(m, len - 1);
-            if (target_height == 2) {
-                std::max(m, len - 1);
-                if () {
-                    divisions = 
-                }
-            }
-
-			for (int i = 0; i < divisions; i++) {
-                divisions = std::min(divisions, m);
-            }
-
-        }
-*/
 
 };
 
