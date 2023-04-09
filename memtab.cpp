@@ -42,11 +42,11 @@ delete the three rooted at n
 		return;
 	deleteTree(n->right);
 	deleteTree(n->left);
-	delete(n);
+	delete n;
 }
 
 static void deleteList(list_node* n)
-{/*free the linked list rooted at n*/
+{/*free the linked list*/
 	if(!n)
 		return;
 	deleteList(n->next);
@@ -274,7 +274,7 @@ class memtab
 			{
 				buf[count*2] = a->key;
 				buf[count*2+1] = a->value;
-				//std::string bleh = "false";
+				std::string bleh = "false";
 				//if (a->next)
 				//	bleh = "true";
 				//std::cout << a->key << "     " << bleh << std::endl;//use for testing
@@ -291,7 +291,7 @@ class memtab
 			std::ofstream output((std::string)filename);
 			output << file_out;
 			output.close();
-			free(buf);
+					
 			return;
 		}
 		
@@ -358,7 +358,6 @@ class memtab
 };
 
 
-/*
 static memtab* build_from_file(const char* filename) 
 {//###note to self### need to set some global var for memory cap on memtable!
 
@@ -387,7 +386,7 @@ static memtab* build_from_file(const char* filename)
 	}
 	return table;
 };
-*/
+
 
 //for testing the tree
 /*

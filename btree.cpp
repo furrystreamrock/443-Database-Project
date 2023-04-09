@@ -1,3 +1,4 @@
+#include <cmath>
 #include "memtab.cpp"
 
 const int max_keys = 2; //B
@@ -16,8 +17,13 @@ struct BTNode {
     BTNode()
     {
         this->num_keys = 0;
+        this->num_children = 0;
         this->is_leaf = true;
         this->parent = nullptr;
+
+        for (int i = 0; i < max_keys + 1; i++) {
+            this->child[i] = nullptr;
+        }
     }
 };
 
@@ -48,17 +54,14 @@ class btree {
                     return search_step( (BTNode*)(node->child[i + 1]) , key, node_found, child_i);
                 }
             }
+            return false;
         }
         
-        btree* clear(BTNode* node){
-            if (node->is_leaf) {
-                //does not delete kv_pairs
-                delete node;
-                return;
-            }
+        void clear(BTNode* node){
 			for (int i = 0; i < node->num_children; i++) {
-                clear((BTNode*)(node->child[i]));
+                clear(node->child[i]);
             }
+            delete node;
         }
         
         void find_lowest_oe(BTNode* node, int min, kv_pair** min_pair, bool* found_valid){
@@ -77,9 +80,10 @@ class btree {
                 }
             }
 
-            if (node->child[max_keys + 1] != nullptr) {
+            if (node->num_children == max_keys + 1) {
                 return find_lowest_oe(node->child[max_keys + 1], min, min_pair, found_valid);
             }
+
         }
         void find_highest_ue(BTNode* node, int max, kv_pair** max_pair, bool* found_valid){
 
@@ -97,7 +101,7 @@ class btree {
                 }
             }
 
-            if (node->child[max_keys + 1] != nullptr) {
+            if (node->num_children == max_keys + 1) {
                 return find_highest_ue(node->child[max_keys + 1], max, max_pair, found_valid);
             }
         }
@@ -105,14 +109,13 @@ class btree {
 
 
         bool scan(int min, int max, kv_pair** min_pair, kv_pair** max_pair){
-            BTNode* result_node;
-            int index_found;
 
             bool found_valid = false;
             find_lowest_oe(root, min, min_pair, &found_valid);
             if (found_valid == false) {
                 return false;
             }
+
             found_valid = false;
             find_highest_ue(root, max, max_pair, &found_valid);
             if (found_valid == false) {
@@ -127,7 +130,7 @@ class btree {
             int index_found;
             bool found = search_step(root, key, &result_node, &index_found);
             if (found) {
-                kv_pair* result_pair = (kv_pair*)(result_node->child[index_found]);
+                kv_pair* result_pair = result_node->pairs[index_found];
                 *val = result_pair->value;
             }
             return found;
@@ -148,7 +151,7 @@ class btree {
                     if (new_right != nullptr){
                         new_right->parent = node;
                         place_target->child[index_found + 1] = new_right;
-                        node->num_children++;
+                        //node->num_children++;
                     }
                 }
                 node->num_keys++;
@@ -233,15 +236,87 @@ class btree {
         
 
 
-        void treeify(kv_pair* pairs, int len){
+        void insert_all(kv_pair* pairs, int len){
             for (int i = 0; i < len; i++) {
                 insert(&(pairs[i]));
             }
         }
 
-        btree* clear_all(){
+        void clear_all(){
             clear(root);
         }
 
+
+        BTNode* build_step(kv_pair* pairs, int len, int depth, int height, BTNode* parent){
+
+            BTNode* node = new BTNode();
+            if (depth == height) {
+                node->is_leaf = true;
+            } else {
+                node->is_leaf = false;
+            }
+
+            int b = max_keys;
+            int m = b + 1;
+
+            int sub_tree_size = 0;
+            int child_sub_tree_size = 0;
+            for (int i = 0; i < height - depth; i++) {
+                child_sub_tree_size += b * pow(m, i);
+            }
+            //std::cout << "Interval: " << child_sub_tree_size + 1 << std::endl;
+            //std::cout << "Max Keys: " << max_keys << std::endl;
+            //std::cout << "Height Target: " << height << std::endl;
+            //std::cout << "Length: " << len << std::endl;
+            sub_tree_size = child_sub_tree_size + b * pow(m, height - depth);
+            for (int i = 0; i < max_keys; i += child_sub_tree_size + 1) {
+                if (parent == nullptr && depth != height) {
+                    i += child_sub_tree_size + 1;
+                }
+                if (i >= len) {
+                    break;
+                }
+                node->pairs[i] = pairs + i;
+                node->keys[i] = pairs[i].key; 
+
+                node->num_keys++;
+
+                //std::cout << "i: " << i << std::endl;
+                //std::cout << "KEY: " << pairs[i].key << std::endl;
+
+                if (depth != height) {
+                    //std::cout << "building child: " << std::endl;
+                    node->num_children++;
+                    build_step(pairs + i + 1, len - i - 1, depth + 1, height, node);
+                }
+            }
+            //std::cout << "children loop end: " << std::endl;
+            
+            if (depth == 0) {
+                this->root = node;
+            } else if (parent == nullptr) {
+                //std::cout << "building parent: " << std::endl;
+                node->parent = build_step(pairs + sub_tree_size, len - sub_tree_size, depth - 1, height, nullptr);
+                node->parent->child[0] = node;
+                node->parent->num_children++;
+            } else {
+                //std::cout << "depth: " << depth << std::endl;
+                //std::cout << "building  rchild: " << std::endl;
+                node->parent = parent;
+            }
+
+            //std::cout << "done: " << std::endl;
+            return node;
+        }
+
+        void build(kv_pair* pairs, int len){
+            int b = max_keys;
+            int m = b + 1;
+            int target_height = ceil( log2( static_cast<double>(len)/static_cast<double>(b) ) / log2(m) );
+
+            build_step(pairs, len, target_height, target_height, nullptr);
+
+            std::cout << "btree built successfully. " << std::endl;
+        }
 };
 

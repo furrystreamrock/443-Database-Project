@@ -5,7 +5,6 @@
 #include <string>
 #include <iostream>
 
-#include "memtab.cpp"
 #include "btree.cpp"
 
 class Database {
@@ -115,6 +114,8 @@ class Database {
             std::cout << "Begin build "<< filename << std::endl;
 
             kv_pair* pairs = (kv_pair*)( malloc(sizeof(kv_pair) * num_lines) );
+            f.clear();
+            f.seekg(0);
 
             int i = 0;
             while(std::getline(f, key, ','))
@@ -146,7 +147,7 @@ class Database {
             memtab* curr = memtable;
             int success = false;
             int curr_ind = 0;
-            while (success == false) {
+            if (curr_ind == 0) {
 
                 success = curr->get(key, result);
                 if (curr_ind != 0) {
@@ -158,14 +159,35 @@ class Database {
                     return success;
                 }
 
-                if (curr_ind >= num_files) {
-                    return success;
-                }
-	            std::cout << "INT " << curr_ind << " NAME: " << get_file_by_ind(curr_ind) << std::endl;
+                //if (curr_ind >= num_files) {
+                //    return success;
+                //}
+	            //std::cout << "INT " << curr_ind << " NAME: " << get_file_by_ind(curr_ind) << std::endl;
                 
-                curr = build_from_file(get_file_by_ind(curr_ind).c_str());
+                //curr = build_from_file(get_file_by_ind(curr_ind).c_str());
                 curr_ind++;
             }
+
+            
+
+            for (int i = 0; i < num_files; i++) {
+                int num_pairs;
+                kv_pair* pairs = load_sst_as_list(get_file_by_ind(i).c_str(), &num_pairs);
+
+                btree* tree = new btree();
+                //tree->insert_all(pairs, num_pairs);
+                tree->build(pairs, num_pairs);
+
+                bool success = tree->get(key, result);
+
+                if (success == true) {
+                    return success;
+                }         
+
+                tree->clear_all();    
+            }
+
+            return false;
         }
 
         int put(int key, int val) {
@@ -184,7 +206,8 @@ class Database {
             memtab* curr = memtable;
             //TODO: init linked list
 
-            list_node* total_result;
+            list_node* total_result = nullptr;
+
 
             int curr_ind = 0;
             if (curr_ind == 0) {
@@ -214,35 +237,56 @@ class Database {
                 curr_ind++;
             }
 
+
+
             for (int i = 0; i < num_files; i++) {
                 int num_pairs;
-                kv_pair* pairs = load_sst_as_list(get_file_by_ind(curr_ind).c_str(), &num_pairs);
+                kv_pair* pairs = load_sst_as_list(get_file_by_ind(i).c_str(), &num_pairs);
 
                 btree* tree = new btree();
-                tree->treeify(pairs, num_pairs);
+                tree->build(pairs, num_pairs);
 
                 //kv_pair* min_pair = binary_search(&pairs, num_pairs, min);
                 //kv_pair* max_pair = binary_search(&pairs, num_pairs, max);
                 kv_pair* min_pair; kv_pair* max_pair;
                 bool success = tree->scan(min, max, &min_pair, &max_pair);
-                kv_pair* curr = min_pair;
+                kv_pair* curr_pair = min_pair;
 
                 if (success == true) {
-                    while (curr != max_pair + 1) {
-                        kv_pair* next = new kv_pair(curr->key, curr->value);
-                        result[result_length] = 
+                    list_node* sub_result;
+                    list_node* sub_curr;
+                    while (curr_pair != max_pair + 1) {
+                        list_node* sub_new = new list_node(curr_pair->key, curr_pair->value);
+                        if (sub_result == nullptr) {
+                            sub_result = sub_new;
+                        } else {
+                            sub_curr->next = sub_new;
+                        }
+                        sub_curr = sub_new;
 
-                        curr++;
+                        curr_pair++;
+                    }
+
+                    //connect results
+                    if (total_result == nullptr) {
+                        total_result = sub_result;
+                    } else {
+                        list_node* end = get_list_end(total_result);
+                        end->next = sub_result;
+                        total_result->length = total_result->length + sub_result->length;
                     }
                 }         
 
-                tree->clear_all();       
+                
+                tree->clear_all();
                 
             }
+            
             
             *result = (kv_pair*)malloc(sizeof(kv_pair) * total_result->length);
             list_node* currResult = total_result;
             
+            *result_length = total_result->length;
             for (int i = 0; i < total_result->length; i++) {
                 (*result)[i].key = currResult->key;
                 (*result)[i].value = currResult->value;
@@ -290,7 +334,7 @@ class Database {
 
             int buffer_empty = 1;
             if (memtable->getEntries() >= 0){
-	            std::cout << "size "<< memtable->getEntries() << std::endl;
+	            //std::cout << "size "<< memtable->getEntries() << std::endl;
                 memtable->inOrderFlush(get_next_file_name().c_str());
                 buffer_empty = 0;
             }
@@ -318,11 +362,16 @@ int main() {
     db->put(2, 7);
     db->put(3, 8);
     db->put(4, 9);
-    db->put(5, 10);
+    db->put(6, 10);
 
     int result;
     db->get(2, &result);
-    std::cout << "result: " << result << std::endl;
+    std::cout << "result 1: " << result << std::endl;
+
+    kv_pair* results; 
+    int results_len = 0; 
+    db->scan(5, 1000, &results, &results_len);
+    std::cout << "result 2: " << results->key << " w/ len " << results_len << std::endl;
 
 	db->close();
 
