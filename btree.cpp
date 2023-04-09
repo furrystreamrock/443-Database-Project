@@ -56,12 +56,71 @@ class btree {
                 delete node;
                 return;
             }
-			for (int i = 0; i < node->num_keys + 1; i++) {
+			for (int i = 0; i < node->num_children; i++) {
                 clear((BTNode*)(node->child[i]));
             }
         }
         
+        void find_lowest_oe(BTNode* node, int min, kv_pair** min_pair, bool* found_valid){
+            
+			for (int i = 0; i < node->num_keys; i++) {
+                if (node->keys[i] == min) {
+                    *min_pair = node->pairs[i];
+                    *found_valid = true;
+                    return;
+                } else if (node->keys[i] > min) {
+                    *min_pair = node->pairs[i];
+                    *found_valid = true;
+                    if (node->is_leaf == false) {
+                        return find_lowest_oe(node->child[i], min, min_pair, found_valid);
+                    }
+                }
+            }
+
+            if (node->child[max_keys + 1] != nullptr) {
+                return find_lowest_oe(node->child[max_keys + 1], min, min_pair, found_valid);
+            }
+        }
+        void find_highest_ue(BTNode* node, int max, kv_pair** max_pair, bool* found_valid){
+
+			for (int i = 0; i < node->num_keys; i++) {
+                if (node->keys[i] == max) {
+                    *max_pair = node->pairs[i];
+                    *found_valid = true;
+                    return;
+                } else if (node->keys[i] < max) {
+                    *max_pair = node->pairs[i];
+                    *found_valid = true;
+                    if (node->is_leaf == false) {
+                        return find_highest_ue(node->child[i], max, max_pair, found_valid);
+                    }
+                }
+            }
+
+            if (node->child[max_keys + 1] != nullptr) {
+                return find_highest_ue(node->child[max_keys + 1], max, max_pair, found_valid);
+            }
+        }
 	public:
+
+
+        bool scan(int min, int max, kv_pair** min_pair, kv_pair** max_pair){
+            BTNode* result_node;
+            int index_found;
+
+            bool found_valid = false;
+            find_lowest_oe(root, min, min_pair, &found_valid);
+            if (found_valid == false) {
+                return false;
+            }
+            found_valid = false;
+            find_highest_ue(root, max, max_pair, &found_valid);
+            if (found_valid == false) {
+                return false;
+            }
+
+            return true;
+        }
 
         bool get(int key, int* val){
             BTNode* result_node;
@@ -174,6 +233,11 @@ class btree {
         
 
 
+        void treeify(kv_pair* pairs, int len){
+            for (int i = 0; i < len; i++) {
+                insert(&(pairs[i]));
+            }
+        }
 
         btree* clear_all(){
             clear(root);

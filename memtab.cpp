@@ -358,6 +358,7 @@ class memtab
 };
 
 
+/*
 static memtab* build_from_file(const char* filename) 
 {//###note to self### need to set some global var for memory cap on memtable!
 
@@ -386,7 +387,7 @@ static memtab* build_from_file(const char* filename)
 	}
 	return table;
 };
-
+*/
 
 //for testing the tree
 /*
