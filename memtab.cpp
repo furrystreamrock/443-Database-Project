@@ -42,11 +42,11 @@ delete the three rooted at n
 		return;
 	deleteTree(n->right);
 	deleteTree(n->left);
-	delete n;
+	delete(n);
 }
 
 static void deleteList(list_node* n)
-{/*free the linked list*/
+{/*free the linked list rooted at n*/
 	if(!n)
 		return;
 	deleteList(n->next);
