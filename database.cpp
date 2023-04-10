@@ -9,6 +9,7 @@
 #include <time.h>  
 #include <cmath>
 
+int STAGE = 1;
 
 struct bucket_node
 {//chaining the buckets
@@ -167,34 +168,71 @@ class Database {
         }
 
 
-        kv_pair* binary_search(kv_pair** a, int len, int key){
+        bool binary_search(kv_pair* a, int len, int key, kv_pair** result){
             int pivot = (len / 2);
-            if (a[pivot]->key == key) {
-                return *(a + pivot);
+            if (a[pivot].key == key) {
+                *result = (a + pivot);
+                return true;
             }
 
             if (len == 2){ 
-                if (a[0]->key == key) {
-                    return *a;
-                } else if (a[1]->key == key) {
-                    return *(a + 1);
+                if (a[0].key == key) {
+                    *result = a;
+                    return true;
+                } else if (a[1].key == key) {
+                    *result = (a + 1);
+                    return true;
                 } else {
-                    return nullptr;
+                    if (abs(a[0].value - key) > abs(a[1].key - key)) {
+                        *result = (a + 1);
+                    } else {
+                        *result = (a);
+                    }
+                    return false;
                 }
             } else if (len == 1) {
-                if (a[0]->key == key) {
-                    return *a;
+                *result = a;
+                if (a[0].key == key) {
+                    return true;
                 } else {
-                    return nullptr;
+                    return false;
                 }
             }
 
-            kv_pair* left = binary_search(a, pivot, key);
-            if (left != nullptr) {
-                return left;
+            if (a[pivot].key > key) {
+                return binary_search(a, pivot, key, result);
+            } else {
+                return binary_search(a + pivot + 1, len - pivot, key, result);
             }
-            kv_pair* right = binary_search(a + pivot + 1, len - pivot, key);
-            return right;
+            return false;
+        }
+        bool binary_scan(kv_pair* a, int len, int min, int max, kv_pair** start, kv_pair** end){
+            kv_pair* result_min;
+            bool found_min = binary_search(a, len, min, &result_min);
+            if (!found_min) {
+                if (result_min->key < min){
+                    if (result_min - a == 0){
+                        return false;
+                    }
+                    result_min += 1;
+                }
+            }
+            *start = result_min;
+
+            
+            kv_pair* result_max;
+            bool found_max = binary_search(a, len, min, &result_max);
+            if (!found_max) {
+                if (result_max->key > max){
+                    if (result_max - a == len){
+                        return false;
+                    }
+                    result_max -= 1;
+                }
+            }
+            *end = result_max;
+
+            return true;
         }
 
         
@@ -228,7 +266,7 @@ class Database {
             int num_lines = std::count(std::istreambuf_iterator<char>(f), 
                 std::istreambuf_iterator<char>(), '\n');
 
-            std::cout << "Begin build "<< filename << std::endl;
+            std::cout << "Building sst: "<< filename << ", size " << num_lines << std::endl;
 
             kv_pair* pairs = (kv_pair*)( malloc(sizeof(kv_pair) * num_lines) );
             f.clear();
@@ -293,17 +331,36 @@ class Database {
                 int num_pairs;
                 kv_pair* pairs = load_sst_as_list(get_file_by_ind(i).c_str(), &num_pairs);
 
-                btree* tree = new btree();
-                //tree->insert_all(pairs, num_pairs);
-                tree->build(pairs, num_pairs);
+                
+                if (STAGE == 1) {
+                    kv_pair* sst_result;
+                    bool found = binary_search(pairs, num_pairs, key, &sst_result)  ;
+                    if (found == true) {
+                        std::cout << "INT " << sst_result->value << std::endl;
+                        free(pairs);
+                        return found;
+                    }
+                    *result = sst_result->value;
 
-                bool success = tree->get(key, result);
+                } else if (STAGE == 2) {
+                    btree* tree = new btree();
+                    //tree->insert_all(pairs, num_pairs);
+                    tree->build(pairs, num_pairs);
 
-                if (success == true) {
-                    return success;
-                }         
+                    bool success = tree->get(key, result);
 
-                tree->clear_all();    
+                    if (success == true) {
+                        free(pairs);
+                        return success;
+                    }
+
+                    tree->clear_all();    
+
+                } else {
+
+                }
+
+                free(pairs);
             }
 
             return false;
@@ -328,6 +385,8 @@ class Database {
             list_node* total_result = nullptr;
 
 
+            std::cout << "Scan memtree: " << std::endl;
+
             int curr_ind = 0;
             if (curr_ind == 0) {
                 list_node* sub_result;
@@ -347,6 +406,12 @@ class Database {
                         end->next = sub_result;
                         total_result->length = total_result->length + sub_result->length;
                     }
+
+                    
+                    for (int j = 0; j < sub_result->length; j++) {
+                        std::cout << sub_result[j].key << ";";
+                    }
+                    std::cout << std::endl;
                 }
 
                 //if (curr_ind >= num_files) {
@@ -357,23 +422,48 @@ class Database {
             }
 
 
+            std::cout << "Scan sst begin: " << std::endl;
 
             for (int i = 0; i < num_files; i++) {
                 int num_pairs;
                 kv_pair* pairs = load_sst_as_list(get_file_by_ind(i).c_str(), &num_pairs);
+                bool success = false;
 
-                btree* tree = new btree();
-                tree->build(pairs, num_pairs);
+                kv_pair* min_pair = nullptr; 
+                kv_pair* max_pair = nullptr;
+                if (STAGE == 1) {
+                    //std::cout << "SCAN " << i << std::endl;
+                    success = binary_scan(pairs, num_pairs, min, max, &min_pair, &max_pair);
+                    //std::cout << "SCAN2 " << i << std::endl;
 
-                //kv_pair* min_pair = binary_search(&pairs, num_pairs, min);
-                //kv_pair* max_pair = binary_search(&pairs, num_pairs, max);
-                kv_pair* min_pair; kv_pair* max_pair;
-                bool success = tree->scan(min, max, &min_pair, &max_pair);
-                kv_pair* curr_pair = min_pair;
+
+                } else if (STAGE == 2) {
+
+                    btree* tree = new btree();
+                    tree->build(pairs, num_pairs);
+
+                    //kv_pair* min_pair = binary_search(&pairs, num_pairs, min);
+                    //kv_pair* max_pair = binary_search(&pairs, num_pairs, max);
+                    success = tree->scan(min, max, &min_pair, &max_pair);
+
+                    
+                    tree->clear_all();
+                } else {
+
+                }
 
                 if (success == true) {
-                    list_node* sub_result;
-                    list_node* sub_curr;
+                    kv_pair* curr_pair = min_pair;
+                    
+                    bool found = false;
+                    if (curr_pair != max_pair + 1){
+                        found = true;
+                        std::cout << "Scan sst " << i << ":" << std::endl;
+                    }
+
+                    int sub_len = 0;
+                    list_node* sub_result = nullptr;
+                    list_node* sub_curr = nullptr;
                     while (curr_pair != max_pair + 1) {
                         list_node* sub_new = new list_node(curr_pair->key, curr_pair->value);
                         if (sub_result == nullptr) {
@@ -383,22 +473,41 @@ class Database {
                         }
                         sub_curr = sub_new;
 
+                        
+                        std::cout << curr_pair->key << ";";
+
                         curr_pair++;
+                        sub_len++;
+                    }
+                    if (found){
+                        std::cout << std::endl;
+                    }
+                    if (sub_len > 0) {
+                        sub_result->length = sub_len;
+	                    //std::cout << "sub result length "<< sub_result->length << std::endl;
                     }
 
                     //connect results
-                    if (total_result == nullptr) {
-                        total_result = sub_result;
-                    } else {
-                        list_node* end = get_list_end(total_result);
-                        end->next = sub_result;
-                        total_result->length = total_result->length + sub_result->length;
+                    if (sub_result != nullptr) {
+                        if (total_result == nullptr) {
+                            total_result = sub_result;
+                            //std::cout << "new total result length "<< total_result->length << std::endl;
+                        } else {
+                            list_node* end = get_list_end(total_result);
+                            if (sub_result != nullptr) {
+                                int sub_len = 0;
+                                sub_len = sub_result->length;
+                                end->next = sub_result;
+                                total_result->length = total_result->length + sub_len;
+                                //std::cout << "new total result length 2 "<< total_result->length << std::endl;
+                            }
+                        }
                     }
                 }         
-
                 
-                tree->clear_all();
-                
+                if (i != num_files) {
+                    free(pairs);
+                }
             }
             
             
@@ -411,10 +520,37 @@ class Database {
                 (*result)[i].value = currResult->value;
                 currResult = currResult->next;
             }
+	        std::cout << "result length "<< total_result->length << std::endl;
+
             free_linked_list(total_result);
         }
 
 
+        void reset(const char* database_name) {
+            std::ifstream f(get_db_file_name());
+	        if(!f.is_open()) {
+                
+            } else {
+                //load the db
+                std::string temp;
+                std::getline(f, temp);
+
+                num_files = stoi(temp);
+                
+                std::getline(f, temp);
+                int buffer_empty = stoi(temp);
+
+                if (buffer_empty == 0) { 
+                    num_files++;
+                }
+
+                for (int i = 0; i < num_files; i++) {
+                    remove(get_file_by_ind(i).c_str());
+                }
+
+                remove(get_db_file_name().c_str());
+            }
+        }
 
         int open(const char* database_name) {
             this->database_name = database_name;
@@ -472,6 +608,7 @@ class Database {
 
 
 //for testing db
+/*
 int main() {
 
     Database* db = new Database(3);
@@ -501,3 +638,4 @@ int main() {
 	
     return 0;
 }
+*/

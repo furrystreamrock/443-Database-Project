@@ -241,7 +241,7 @@ class memtab
 		unsigned char key;//used for hashing 
 		bool isFull()
 		{
-			std::cout << entries << "/" << memtable_size << std::endl;
+			//std::cout << entries << "/" << memtable_size << std::endl;
 			return !(entries < memtable_size);
 		}
 		
@@ -276,7 +276,7 @@ class memtab
 			
 			root = insert(root, key, value);
 			this->entries++;
-			std::cout << "Inserted: " << key << " " << value << std::endl; 
+			//std::cout << "Inserted: " << key << " " << value << std::endl; 
 			return 0;
 		}
 		  
