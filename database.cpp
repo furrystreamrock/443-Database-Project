@@ -13,16 +13,27 @@ int STAGE = 1;
 
 struct bucket_node
 {//chaining the buckets
+	bucket_node * prev;
 	bucket_node * next;
 	memtab * table;	
-	int entries;
-	bucket_node(): next(nullptr), table(nullptr), entries(0){}
+	bool clockbit;
+	bucket_node(): prev(nullptr), next(nullptr), table(nullptr), clockbit(false){}
 };
+
+struct node_dll
+{
+	node_dll* next;
+	node_dll* prev;
+	bucket_node* target;
+	
+	node_dll(): next(nullptr), prev(nullptr), target(nullptr){}
+};
+
 
 static unsigned char bitHash(int bits, unsigned char key)
 {//we hash the key by choosing some number of leading bits
 	unsigned char mask= 0;
-	for(int i = 0; i < 5; i++) // subroutine to make bit mask
+	for(int i = 0; i < bits; i++) // subroutine to make bit mask
 	{
 		unsigned char temp = mask << 1;
 		mask = temp | 1;
@@ -39,7 +50,10 @@ class Database {
 	const int max_buff_depth = 5;//no more than 32 entries.
 	int curr_buffer_depth;
 	int curr_buffer_entries;
-	int policy; //NOTE TO SELF######: assign policies to ints. (0 is lru, 1 is clock, etc)
+	int evict_policy; //NOTE TO SELF######: assign policies to ints. (0 is lru, 1 is clock, etc)
+	node_dll* lru_head;
+	node_dll* lru_tail;
+	
 	
     int memtable_size;
     memtab* memtable;
@@ -69,48 +83,81 @@ class Database {
 				buffer_directory[i] = new bucket_node();
 			}
 			curr_buffer_entries = 0;
+			evict_policy = 0;
+			lru_head = nullptr;
+			lru_tail = nullptr;
 		}
 		
 		void insertIntoBuffer(memtab* table)
 		{//inserts table into buffer, evicts if needed
 		
 			curr_buffer_entries++;//check for space in buffer, evict if needed 
-			if(curr_buffer_entries > pow(2, curr_buffer_depth))
+			if(curr_buffer_entries > pow(2, curr_buffer_depth) * 0.85)//85% capacity threshold
 			{
 				if(curr_buffer_depth >= max_buff_depth)
 					evict();
 				else
 					doubleBufferSize();
 			}
-		
+			std::cout << "checkpoint 1" << std::endl;
 			unsigned char hash = bitHash(curr_buffer_depth, table->key);
-			
 			bucket_node* curr_head = buffer_directory[int(hash)];
+			std::cout << curr_buffer_depth << std::endl;
+			std::cout << int(hash) << std::endl;
+			if(curr_head)
+				std::cout << "checkpoint 1.5" << std::endl;
+			
 			while(curr_head->next)
 				curr_head = curr_head->next;
-						
+			
+			std::cout << "checkpoint 2" << std::endl;
 			if(!curr_head->table)
 			{
 				curr_head->table = (memtab*)malloc(sizeof(memtab));//save this table in heap, referenced to by this bucket node
 				std::memcpy(curr_head->table, table, sizeof(memtab));
-				
+				curr_head->clockbit = true;
 				Node* newRoot = (Node*)(malloc(sizeof(Node)));//in addition to keeping the table in memory, have to traverse the tree and do the same.
 				std::memcpy(newRoot, table->root, sizeof(Node));
 				curr_head->table->root = newRoot;
 				heapifyTree(curr_head->table->root);
-				
+				std::cout << "checkpoint 3" << std::endl;
 				curr_head->next = new bucket_node();
-			}			
+				curr_head->next->prev = curr_head;
+			}	
+			std::cout << "checkpoint 4" << std::endl;
 		}
 		void evict()
 		{//policy dependant
+			if(evict_policy == 0)
+				lruEvict();
+			if(evict_policy == 1)
+				clockEvict();
 		}
+		
+		void lruEvict()
+		{
+			bucket_node* toEvict = lru_tail->target;
+			
+			//process the bucket/directory to remove the page
+			if(toEvict->prev)
+				toEvict->prev->next = toEvict->next;
+			evict_bucket(toEvict);
+			
+			//update the double linked eviction list
+			lru_tail->prev->next = nullptr;//new tail
+			node_dll* temp = lru_tail->prev ? lru_tail->prev : nullptr;//redundant? this is intended implemntation but mby not needed
+			delete(lru_tail);
+			lru_tail = temp;
+			
+		}
+		void clockEvict()
+		{}
 		void evict_bucket(bucket_node * n)
 		{//evict a certain memtab
-		
 			freeTree(n->table->root);
 			free(n->table); 
 		}
+		
 		void doubleBufferSize()
 		{
 			curr_buffer_depth++;
@@ -121,8 +168,10 @@ class Database {
 				return;
 			}
 			
-			bucket_node ** temp = (bucket_node**)(malloc(pow(2, curr_buffer_depth-1) * sizeof(bucket_node)));
-			temp = buffer_directory;
+			bucket_node ** temp = (bucket_node**)(malloc(pow(2, curr_buffer_depth-1) * sizeof(bucket_node*))); //hold the pointers to the buckets in temp.
+			std::memcpy(temp, buffer_directory, pow(2,curr_buffer_depth-1) * sizeof(bucket_node*));
+			
+			free(buffer_directory);
 			//new directory with double the size.
 			buffer_directory = (bucket_node**)(malloc(pow(2,min_buffer_depth) * sizeof(bucket_node*)));
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
@@ -133,7 +182,7 @@ class Database {
 			for(int i = 0; i < pow(2, curr_buffer_depth-1); i++)
 			{	
 				bucket_node* curr = temp[i];
-				if(curr->table)
+				while(curr && curr->table)
 				{
 					insertIntoBuffer(curr->table);
 					bucket_node* tempnext = curr->next;
@@ -143,6 +192,21 @@ class Database {
 			}
 			free(temp);
 		}
+		
+		memtab* getTable(unsigned char key)
+		{//returns the table pointer to table in buffer on success, nullptr on failure
+			bucket_node* head = buffer_directory[int(bitHash(curr_buffer_depth, key))];
+			while(head)
+			{
+				if(head->table->key == key)
+					return head->table;
+				
+				if(head->next)
+					head = head->next;
+			}
+			return nullptr;
+		}
+		
 		
 //----------------------------------buffer methods end-------------------------------------------------	
 
@@ -365,7 +429,15 @@ class Database {
 
             return false;
         }
-
+		void TESTINGBUFFER()
+		{
+			memtable->printInorder();
+			insertIntoBuffer(memtable);
+			
+			std::cout << int(bitHash(curr_buffer_depth, memtable->key)) << std::endl;
+			getTable(memtable->key)->printInorder();
+			
+		}
         int put(int key, int val) {
             int success = memtable->insert(key, val);
             
@@ -584,7 +656,7 @@ class Database {
             //TODO: report errors
             return 0;
         }
-
+	
         void close() {
 
             int buffer_empty = 1;
@@ -602,14 +674,27 @@ class Database {
 
             delete memtable;
         }
+		
+		void print_buffer()
+		{
+			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
+			{	
+				bucket_node* curr = buffer_directory[i];
+				while(curr && curr->table)
+				{
+					curr->table->printInorder();
+					curr = curr->next;
+				}
+			}
+		}
 };
 
 
 
 
 //for testing db
-/*
 int main() {
+	srand(time(NULL));
 
     Database* db = new Database(3);
 
@@ -618,9 +703,10 @@ int main() {
     db->put(2, 7);
     db->put(3, 8);
     db->put(4, 9);
-    db->put(6, 10);
+    db->put(5, 10);
+	db->TESTINGBUFFER();
 
-    int result;
+    /* int result;
     db->get(2, &result);
     std::cout << "result 1: " << result << std::endl;
 
@@ -633,9 +719,8 @@ int main() {
 
 	db->open("testDB");
     db->put(1, 2);
-	db->close();
+	db->close(); */
 	
 	
     return 0;
 }
-*/
