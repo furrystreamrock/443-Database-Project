@@ -9,7 +9,7 @@
 #include <time.h>  
 #include <cmath>
 
-int STAGE = 1;
+int STAGE = 0;
 
 struct bucket_node
 {//chaining the buckets
@@ -264,7 +264,7 @@ class Database {
                     *result = (a + 1);
                     return true;
                 } else {
-                    if (abs(a[0].value - key) > abs(a[1].key - key)) {
+                    if (abs(a[0].key - key) > abs(a[1].key - key)) {
                         *result = (a + 1);
                     } else {
                         *result = (a);
@@ -288,7 +288,7 @@ class Database {
             return false;
         }
         bool binary_scan(kv_pair* a, int len, int min, int max, kv_pair** start, kv_pair** end){
-            kv_pair* result_min;
+            kv_pair* result_min = nullptr;
             bool found_min = binary_search(a, len, min, &result_min);
             if (!found_min) {
                 if (result_min->key < min){
@@ -301,8 +301,8 @@ class Database {
             *start = result_min;
 
             
-            kv_pair* result_max;
-            bool found_max = binary_search(a, len, min, &result_max);
+            kv_pair* result_max = nullptr;
+            bool found_max = binary_search(a, len, max, &result_max);
             if (!found_max) {
                 if (result_max->key > max){
                     if (result_max - a == len){
@@ -388,21 +388,10 @@ class Database {
             if (curr_ind == 0) {
 
                 success = curr->get(key, result);
-                if (curr_ind != 0) {
-                    //clear any temp trees
-                    curr->deleteAll();
-                    delete curr;
-                }
                 if (success == true) {
                     return success;
                 }
 
-                //if (curr_ind >= num_files) {
-                //    return success;
-                //}
-	            //std::cout << "INT " << curr_ind << " NAME: " << get_file_by_ind(curr_ind) << std::endl;
-                
-                //curr = build_from_file(get_file_by_ind(curr_ind).c_str());
                 curr_ind++;
             }
 
@@ -417,11 +406,11 @@ class Database {
                     kv_pair* sst_result;
                     bool found = binary_search(pairs, num_pairs, key, &sst_result)  ;
                     if (found == true) {
-                        std::cout << "INT " << sst_result->value << std::endl;
+                        *result = sst_result->value;
+                        //FREES THE LOADED PAIRLIST
                         free(pairs);
                         return found;
                     }
-                    *result = sst_result->value;
 
                 } else if (STAGE == 2) {
                     btree* tree = new btree();
@@ -441,6 +430,7 @@ class Database {
 
                 }
 
+                //FREES THE LOADED PAIRLIST
                 free(pairs);
             }
 
@@ -503,7 +493,6 @@ class Database {
 
             list_node* total_result = nullptr;
 
-
             std::cout << "Scan memtree: " << std::endl;
 
             int curr_ind = 0;
@@ -511,21 +500,9 @@ class Database {
                 list_node* sub_result;
                 //TODO: scan 'curr' and add stuff to linked list
                 curr->scan(min, max, &sub_result);
-                if (curr_ind != 0) {
-                    //clear any temp trees
-                    curr->deleteAll();
-                    delete curr;
-                }
 
                 if (sub_result != nullptr && sub_result->length > 0){
-                    if (total_result == nullptr) {
-                        total_result = sub_result;
-                    } else {
-                        list_node* end = get_list_end(total_result);
-                        end->next = sub_result;
-                        total_result->length = total_result->length + sub_result->length;
-                    }
-
+                    total_result = sub_result;
                     
                     for (int j = 0; j < sub_result->length; j++) {
                         std::cout << sub_result[j].key << ";";
@@ -533,13 +510,8 @@ class Database {
                     std::cout << std::endl;
                 }
 
-                //if (curr_ind >= num_files) {
-                //    break;
-                //}
-                //curr = build_from_file(get_file_by_ind(curr_ind).c_str());
                 curr_ind++;
             }
-
 
             std::cout << "Scan sst begin: " << std::endl;
 
@@ -624,32 +596,43 @@ class Database {
                     }
                 }         
                 
-                if (i != num_files) {
+                //TODO: someth in memtab appears to delete the last loaded sst as well
+                //if (i != num_files) {
+                    //FREES THE LOADED PAIRLIST
                     free(pairs);
-                }
+                //}
             }
             
-            
-            *result = (kv_pair*)malloc(sizeof(kv_pair) * total_result->length);
-            list_node* currResult = total_result;
-            
-            *result_length = total_result->length;
-            for (int i = 0; i < total_result->length; i++) {
-                (*result)[i].key = currResult->key;
-                (*result)[i].value = currResult->value;
-                currResult = currResult->next;
-            }
-	        std::cout << "result length "<< total_result->length << std::endl;
 
-            free_linked_list(total_result);
+            int res_len = 0;       
+            if (total_result != nullptr) {
+                *result = (kv_pair*)malloc(sizeof(kv_pair) * total_result->length);
+                list_node* currResult = total_result;
+                
+                *result_length = total_result->length;
+                for (int i = 0; i < total_result->length; i++) {
+                    (*result)[i].key = currResult->key;
+                    (*result)[i].value = currResult->value;
+                    currResult = currResult->next;
+                }
+                std::cout << "result length "<< total_result->length << std::endl;
+
+                free_linked_list(total_result);
+            } else {
+                std::cout << "nothing found. " << std::endl;
+                *result = nullptr;
+            }
         }
 
 
         void reset(const char* database_name) {
+            this->database_name = database_name;
+
             std::ifstream f(get_db_file_name());
 	        if(!f.is_open()) {
                 
             } else {
+                std::cout << "Deleting all. " << std::endl;
                 //load the db
                 std::string temp;
                 std::getline(f, temp);
@@ -663,12 +646,14 @@ class Database {
                     num_files++;
                 }
 
+                remove(get_db_file_name().c_str());
+
                 for (int i = 0; i < num_files; i++) {
                     remove(get_file_by_ind(i).c_str());
                 }
-
-                remove(get_db_file_name().c_str());
             }
+
+            this->database_name = "";
         }
 
         int open(const char* database_name) {
@@ -680,11 +665,13 @@ class Database {
             std::ifstream f(get_db_file_name());
 	        if(!f.is_open()) {
                 //must make new db
+                std::cout << "Making new DB. " << std::endl;
                 num_files = 0;
                 memtable = new memtab(memtable_size);
-                
+
             } else {
                 //load the db
+                std::cout << "Loading DB. " << std::endl;
                 std::string temp;
                 std::getline(f, temp);
 
@@ -708,7 +695,8 @@ class Database {
 
             int buffer_empty = 1;
             if (memtable->getEntries() >= 0){
-	            //std::cout << "size "<< memtable->getEntries() << std::endl;
+                //TODO: might be crashing here
+	            std::cout << "size "<< memtable->getEntries() << std::endl;
                 memtable->inOrderFlush(get_next_file_name().c_str());
                 buffer_empty = 0;
             }

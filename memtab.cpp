@@ -5,6 +5,8 @@
 #include <string>
 #include <random>
 #include <cstring>
+#include "objs.cpp"
+/*
 struct kv_pair
 {//kv pair
 	int key;
@@ -22,6 +24,7 @@ struct list_node
 
 	list_node(int key, int value) : key(key), value(value), next(nullptr), length(1){}
 };
+*/
 
 struct Node 
 {//binary tree node
@@ -77,14 +80,15 @@ static void heapifyTree(Node* n)
 	
 }
 
+/*
 static void deleteList(list_node* n)
-{/*free the linked list*/
+{//free the linked list
 	if(!n)
 		return;
 	deleteList(n->next);
 	delete(n);
 }
-
+*/
 
 
 class memtab
