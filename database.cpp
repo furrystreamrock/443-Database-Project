@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include "btree.cpp"
+#include "lsmtree.cpp"
 #include <random>
 #include <time.h>  
 #include <cmath>
@@ -377,38 +378,7 @@ class Database {
         }
 
         kv_pair* load_sst_as_list(const char* filename, int* len){
-            using namespace std;
-            
-            std::ifstream f(filename);
-            if(!f.is_open())
-            {
-                std:cout << "Failed to open file: " << filename << std::endl;
-                return nullptr;
-            }
-            std::string key, val;
-
-            int num_lines = std::count(std::istreambuf_iterator<char>(f), 
-                std::istreambuf_iterator<char>(), '\n');
-
-            std::cout << "Building sst: "<< filename << ", size " << num_lines << std::endl;
-
-            kv_pair* pairs = (kv_pair*)( malloc(sizeof(kv_pair) * num_lines) );
-            f.clear();
-            f.seekg(0);
-
-            int i = 0;
-            while(std::getline(f, key, ','))
-            {
-                std::getline(f, val);
-                
-                pairs[i].key = stoi(key);
-                pairs[i].value = stoi(val);
-                
-                i++;
-            }
-
-            *len = i;
-            return pairs;
+            return lsmtree::load_sst(filename, len);
         }
 
     
