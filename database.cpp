@@ -431,21 +431,10 @@ class Database {
             if (curr_ind == 0) {
 
                 success = curr->get(key, result);
-                if (curr_ind != 0) {
-                    //clear any temp trees
-                    curr->deleteAll();
-                    delete curr;
-                }
                 if (success == true) {
                     return success;
                 }
 
-                //if (curr_ind >= num_files) {
-                //    return success;
-                //}
-	            //std::cout << "INT " << curr_ind << " NAME: " << get_file_by_ind(curr_ind) << std::endl;
-                
-                //curr = build_from_file(get_file_by_ind(curr_ind).c_str());
                 curr_ind++;
             }
 
@@ -547,7 +536,6 @@ class Database {
 
             list_node* total_result = nullptr;
 
-            /*
             std::cout << "Scan memtree: " << std::endl;
 
             int curr_ind = 0;
@@ -555,21 +543,9 @@ class Database {
                 list_node* sub_result;
                 //TODO: scan 'curr' and add stuff to linked list
                 curr->scan(min, max, &sub_result);
-                if (curr_ind != 0) {
-                    //clear any temp trees
-                    curr->deleteAll();
-                    delete curr;
-                }
 
                 if (sub_result != nullptr && sub_result->length > 0){
-                    if (total_result == nullptr) {
-                        total_result = sub_result;
-                    } else {
-                        list_node* end = get_list_end(total_result);
-                        end->next = sub_result;
-                        total_result->length = total_result->length + sub_result->length;
-                    }
-
+                    total_result = sub_result;
                     
                     for (int j = 0; j < sub_result->length; j++) {
                         std::cout << sub_result[j].key << ";";
@@ -577,13 +553,8 @@ class Database {
                     std::cout << std::endl;
                 }
 
-                //if (curr_ind >= num_files) {
-                //    break;
-                //}
-                //curr = build_from_file(get_file_by_ind(curr_ind).c_str());
                 curr_ind++;
             }
-            */
 
             std::cout << "Scan sst begin: " << std::endl;
 
