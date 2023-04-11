@@ -234,7 +234,7 @@ class Database {
 			free(temp);
 		}
 		
-		reinsertBucket(bucket_node* b)
+		void reinsertBucket(bucket_node* b)
 		{//
 			
 			bucket_node* head = buffer_directory[bitHash(curr_buffer_depth, b->sst->key)];
