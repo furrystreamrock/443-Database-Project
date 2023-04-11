@@ -33,25 +33,38 @@ class btree {
 		int entries;
 
         bool search_step(BTNode* node, int key, BTNode** node_found, int* child_i){
+            std::cout << "searchx: " << std::endl;
 			for (int i = 0; i < node->num_keys; i++) {
+                std::cout << "key: " << node->keys[i];
+                std::cout << "target: " << key << std::endl;
                 if (key == node->keys[i]){
                     *node_found = node;
                     *child_i = i;
                     return true;
                 } else if (key < node->keys[i]){
+                    std::cout << "yess: " << std::endl;
                     if (node->is_leaf == true){
+                        std::cout << "WHAT: " << std::endl;
+                        std::cout << "children: " << node->num_children << std::endl;
                         *node_found = node;
                         *child_i = i;
                         return false;
                     }
-                    return search_step( (BTNode*)(node->child[i]) , key, node_found, child_i);
+                    return search_step( node->child[i] , key, node_found, child_i);
                 } else if (i == node->num_keys - 1){
+                    std::cout << "check rightmost: " << std::endl;
                     if (node->is_leaf == true){
+                        std::cout << "fail1: " << std::endl;
                         *node_found = node;
                         *child_i = i + 1;
                         return false;
                     }
-                    return search_step( (BTNode*)(node->child[i + 1]) , key, node_found, child_i);
+                    if (node->child[i + 1] == nullptr) {
+                        std::cout << "fail2: " << std::endl;
+                    } else if (node->num_children > i + 1) {
+                        std::cout << "fail3: " << std::endl;
+                        return search_step( node->child[i + 1] , key, node_found, child_i);
+                    }
                 }
             }
             return false;
@@ -67,6 +80,7 @@ class btree {
         void find_lowest_oe(BTNode* node, int min, kv_pair** min_pair, bool* found_valid){
             
 			for (int i = 0; i < node->num_keys; i++) {
+                //std::cout << "i: " << i << " key: " << node->keys[i] << std::endl;
                 if (node->keys[i] == min) {
                     *min_pair = node->pairs[i];
                     *found_valid = true;
@@ -76,18 +90,21 @@ class btree {
                     *found_valid = true;
                     if (node->is_leaf == false) {
                         return find_lowest_oe(node->child[i], min, min_pair, found_valid);
+                    } else {
+                        return;
                     }
                 }
             }
 
-            if (node->num_children == max_keys + 1) {
-                return find_lowest_oe(node->child[max_keys + 1], min, min_pair, found_valid);
+            if (node->is_leaf == false && node->num_children == node->num_keys + 1) {
+                return find_lowest_oe(node->child[node->num_keys], min, min_pair, found_valid);
             }
 
         }
         void find_highest_ue(BTNode* node, int max, kv_pair** max_pair, bool* found_valid){
 
-			for (int i = 0; i < node->num_keys; i++) {
+			for (int i = node->num_keys - 1; i >= 0; i--) {
+                //std::cout << "i: " << i << " key: " << node->keys[i] << std::endl;
                 if (node->keys[i] == max) {
                     *max_pair = node->pairs[i];
                     *found_valid = true;
@@ -96,13 +113,19 @@ class btree {
                     *max_pair = node->pairs[i];
                     *found_valid = true;
                     if (node->is_leaf == false) {
-                        return find_highest_ue(node->child[i], max, max_pair, found_valid);
+                        if (node->num_children > i + 1) {
+                            return find_highest_ue(node->child[i + 1], max, max_pair, found_valid);
+                        } else {
+                            return;
+                        }
+                    } else {
+                        return;
                     }
                 }
             }
 
-            if (node->num_children == max_keys + 1) {
-                return find_highest_ue(node->child[max_keys + 1], max, max_pair, found_valid);
+            if (node->is_leaf == false && node->num_children > 0) {
+                return find_highest_ue(node->child[0], max, max_pair, found_valid);
             }
         }
 	public:
@@ -113,20 +136,24 @@ class btree {
             bool found_valid = false;
             find_lowest_oe(root, min, min_pair, &found_valid);
             if (found_valid == false) {
+                std::cout << "fail1 "<< std::endl;
                 return false;
             }
 
             found_valid = false;
             find_highest_ue(root, max, max_pair, &found_valid);
             if (found_valid == false) {
+                std::cout << "fail2 "<< std::endl;
                 return false;
             }
+            
+            std::cout << "Between: " << min << " and " << max << std::endl;
 
             return true;
         }
 
         bool get(int key, int* val){
-            BTNode* result_node;
+            BTNode* result_node = nullptr;
             int index_found;
             bool found = search_step(root, key, &result_node, &index_found);
             if (found) {
@@ -264,38 +291,51 @@ class btree {
             for (int i = 0; i < height - depth; i++) {
                 child_sub_tree_size += b * pow(m, i);
             }
-            //std::cout << "Interval: " << child_sub_tree_size + 1 << std::endl;
+            int gap = child_sub_tree_size + 1;
+            // std::cout << "Interval: " << gap << std::endl;
             //std::cout << "Max Keys: " << max_keys << std::endl;
             //std::cout << "Height Target: " << height << std::endl;
-            //std::cout << "Length: " << len << std::endl;
+            // std::cout << "Length: " << len << std::endl;
             sub_tree_size = child_sub_tree_size + b * pow(m, height - depth);
-            for (int i = 0; i < max_keys; i += child_sub_tree_size + 1) {
-                if (parent == nullptr && depth != height) {
-                    i += child_sub_tree_size + 1;
-                }
-                if (i >= len) {
-                    break;
-                }
-                node->pairs[i] = pairs + i;
-                node->keys[i] = pairs[i].key; 
 
-                node->num_keys++;
 
-                //std::cout << "i: " << i << std::endl;
-                //std::cout << "KEY: " << pairs[i].key << std::endl;
+            int curr_offset = 0;
+            for (int i = 0; i < max_keys + 1; i++) {
+                // std::cout << "loop: " << i << std::endl;
 
-                if (depth != height) {
-                    //std::cout << "building child: " << std::endl;
-                    node->num_children++;
-                    build_step(pairs + i + 1, len - i - 1, depth + 1, height, node);
+                if (curr_offset >= len) {
+                    //std::cout << "break: " << depth << std::endl;
+                    //break;
+                } else {
+                    if (i < max_keys) {
+                        node->pairs[i] = pairs + curr_offset;
+                        node->keys[i] = (pairs + curr_offset)->key; 
+                        node->num_keys++;
+                        // std::cout << "i: " << i << std::endl;
+                        // std::cout << "KEY: " << (pairs + curr_offset)->key << std::endl;
+                    }
                 }
+
+                
+                if (curr_offset + 1 - gap < len) {
+                    if (depth != height && (i != 0 || parent != nullptr)) {
+                        // std::cout << "building child w/ index: " << i << std::endl;
+
+                        BTNode* new_node = build_step(pairs + curr_offset + 1 - gap, len - (curr_offset - gap) - 1 , depth + 1, height, node);
+                        node->child[i] = new_node;
+                        node->num_children++;
+                    }
+                }
+
+                curr_offset += gap;
             }
+
             //std::cout << "children loop end: " << std::endl;
             
             if (depth == 0) {
                 this->root = node;
             } else if (parent == nullptr) {
-                //std::cout << "building parent: " << std::endl;
+                std::cout << "building parent with len: " << len - sub_tree_size << std::endl;
                 node->parent = build_step(pairs + sub_tree_size, len - sub_tree_size, depth - 1, height, nullptr);
                 node->parent->child[0] = node;
                 node->parent->num_children++;
@@ -305,6 +345,7 @@ class btree {
                 node->parent = parent;
             }
 
+            //std::cout << "NUM CHILDREN: " << node->num_children << " NUM KEYS: " << node->num_keys << std::endl;
             //std::cout << "done: " << std::endl;
             return node;
         }

@@ -12,7 +12,7 @@ int main() {
 	db->reset("testDB");
 	db->open("testDB");
 
-    int n = 100;
+    int n = 20;
     double put_total = 0.0;
     if (true){
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
@@ -22,31 +22,40 @@ int main() {
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
         put_total = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
     }
-	std::cout << "Put Total Time: "<< put_total << "ms" << std::endl;
+
+	std::cout << "Put Done." << std::endl;
 
     int gets = 5;
     double avg_get = 0.0;
     for (int i = 0; i < gets; i++) {
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-        int target = rand() % n; int result;
-        db->get(90, &result);
+        int target = 13; //rand() % (n - 4); 
+        int result;
+        db->get(target, &result);
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
         double delta = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
 
         avg_get += delta;
+
+	    std::cout << "Get target: " << target << " Get result: " << result << std::endl;
     }
     avg_get = avg_get / gets;
 
-	std::cout << "Get Avg Time: "<< avg_get << "ms" << std::endl;
+	std::cout << "Get Done." << std::endl ;
+	std::cout << std::endl ;
+    //return 0;
 
-    int scans = 1;
+    int scans = 5;
     int scan_len = 10;
     double avg_scan = 0.0;
     for (int i = 0; i < scans; i++) {
+
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-        int min = rand() % (n - scan_len); int max = min + scan_len; 
+        int min = 5; //rand() % (n - scan_len - 4); 
+        int max = min + scan_len; 
         kv_pair* result; int result_len;
+	    std::cout << "minimum: " << min << " maximum: " << max << std::endl;
         db->scan(min, max, &result, &result_len);
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
@@ -54,7 +63,6 @@ int main() {
 
         avg_scan += delta;
 
-	    std::cout << "minimum: " << min << " maximum: " << max << std::endl;
         if (i == 0) {
             for (int j = 0; j < result_len; j++) {
 	            std::cout << result[j].key << ";";
@@ -63,7 +71,12 @@ int main() {
         }
     }
     avg_scan = avg_scan / scans;
+	std::cout << "Scan Done." << std::endl;
 
+
+	std::cout << "Num entries: "<< n << std::endl;
+	std::cout << "Put Total Time: "<< put_total << "ms" << std::endl;
+	std::cout << "Get Avg Time: "<< avg_get << "ms" << std::endl;
 	std::cout << "Scan Avg Time: "<< avg_scan << "ms" << std::endl;
     
 	db->close();
