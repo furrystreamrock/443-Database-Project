@@ -10,14 +10,26 @@
 #include <cmath>
 
 int STAGE = 0;
+struct SST
+{
+	kv_pair* data;//(kv_pair*)(malloc(SST_BYTES))
+	int minkey;
+	int maxkey;
+	int entries; //must be < MAX_ENTRIES;
+	unsigned short key;
+	SST(): data(nullptr), minkey(0), maxkey(0), key(0) {}
+};
 
 struct bucket_node
-{//chaining the buckets
+{//Can be set up for either storing AVL trees or an array of KV's + metadata depending on code version
 	bucket_node * prev;
 	bucket_node * next;
-	memtab * table;	 
+	//memtab * table;	 //archiac
+	
+	SST* sst;
+	
 	bool clockbit;
-	bucket_node(): prev(nullptr), next(nullptr), table(nullptr), clockbit(false){}
+	bucket_node(): prev(nullptr), next(nullptr), sst(nullptr), clockbit(false){}
 };
 
 struct node_dll
@@ -25,7 +37,6 @@ struct node_dll
 	node_dll* next;
 	node_dll* prev;
 	bucket_node* target;
-	
 	node_dll(): next(nullptr), prev(nullptr), target(nullptr){}
 };
 
@@ -41,6 +52,8 @@ static unsigned short bitHash(int bits, unsigned short key)
 	return (unsigned short)(mask & key);
 }
 
+static const int SST_BYTES = 4096 - sizeof(SST) - 5; //just shy of 4kb per sst including metadata
+static const int MAX_ENTRIES = SST_BYTES / sizeof(kv_pair);
 
 class Database {
     std::string database_name;
@@ -88,7 +101,7 @@ class Database {
 			lru_tail = nullptr;
 		}
 		
-		void insertIntoBuffer(memtab* table, bool rebuild=false)
+		void insertIntoBuffer(SST* sst)
 		{//inserts table into buffer, evicts if needed
 		//should be done on pages we know aren't already in the buffer
 				
@@ -101,34 +114,43 @@ class Database {
 			}
 			
 			curr_buffer_entries++;
-			unsigned short hash = bitHash(curr_buffer_depth, table->key);
+			unsigned short hash = bitHash(curr_buffer_depth, sst->key);
 			bucket_node* curr_head = buffer_directory[hash];
 			//std::cout << curr_buffer_depth << std::endl;
 			std::cout << "Buffer pages: " << curr_buffer_entries << std::endl;
 			std::cout << "Inserting at hash: "<<  int(hash) << std::endl;
-			
+			std::cout << "CHECKPOINT 1" << std::endl;
 			while(curr_head->next)
 				curr_head = curr_head->next;
 			
 			
-			curr_head->table = (memtab*)malloc(sizeof(memtab));//save this table in heap, referenced to by this bucket node
-			std::memcpy(curr_head->table, table, sizeof(memtab));
-			curr_head->clockbit = true;
-			Node* newRoot = (Node*)(malloc(sizeof(Node)));//in addition to keeping the table in memory, have to traverse the tree and do the same.
-			std::memcpy(newRoot, table->root, sizeof(Node));
-			curr_head->table->root = newRoot;
-			heapifyTree(curr_head->table->root);
+			curr_head->sst = (SST*)malloc(sizeof(SST));
+			std::memcpy(curr_head->sst, sst, sizeof(SST));
+			
+			std::cout << "CHECKPOINT 2" << std::endl;
+			
+			curr_head->sst->data = (kv_pair*)(malloc(SST_BYTES));
+			std::memcpy(curr_head->sst->data, sst, SST_BYTES);
+
 			curr_head->next = new bucket_node();
 			curr_head->next->prev = curr_head;
-
+			std::cout << "CHECKPOINT 3" << std::endl;
 			//stop here if rebuilding from buffer from doubling its size
-			std::cout << "Rebuild? " << rebuild << std::endl;
-			if(rebuild)
-				return;
+
 			//LRU
 			if(evict_policy == 0)
 				lruUpdate(curr_head);
-		}
+			
+			node_dll* a = lru_head;
+			while(a)
+			{
+				std::cout << bitHash(curr_buffer_depth, sst->key) << "|";
+				a = a->next;
+			}
+			std::cout << std::endl;
+
+			std::cout << "CHECKPOINT 4" << std::endl;
+		}	
 		void evict()
 		{//policy dependant
 			if(evict_policy == 0)
@@ -143,14 +165,15 @@ class Database {
 		{//remove the tail of lru, should free all associated memory in that page as well
 			if(!lru_tail)
 				std::cerr << "Warning! tried to evict in empty buffer." << std::endl;
-			
 			cleanBucket(lru_tail->target);
+			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
-			std::cout << "Evicting page in bucket :" << bitHash(curr_buffer_depth, lru_tail->target->table->key) << std::endl;
+			std::cout << "Evicting page in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
 			delete(lru_tail);
 			lru_tail = temp;
 			if(lru_tail)
 				lru_tail->next = nullptr;
+			
 		}
 		void lruUpdate(bucket_node* target)
 		{//new get or insert updates a page
@@ -167,8 +190,8 @@ class Database {
 		{}
 		void cleanBucket(bucket_node * n)
 		{//evict a certain memtab
-			freeTree(n->table->root);
-			free(n->table); 
+			free(n->sst->data);
+			free(n->sst);
 		}
 		
 		void doubleBufferSize()
@@ -189,7 +212,6 @@ class Database {
 			//new directory with double the size.
 			std::cout << "Building directory with new depth :" << curr_buffer_depth << std::endl;
 			buffer_directory = (bucket_node**)(malloc(pow(2,curr_buffer_depth) * sizeof(bucket_node*)));
-			curr_buffer_entries = 0;
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
 			{	
 				buffer_directory[i] = new bucket_node();
@@ -198,10 +220,11 @@ class Database {
 			for(int i = 0; i < pow(2, curr_buffer_depth-1); i++)
 			{	
 				bucket_node* curr = temp[i];
-				while(curr && curr->table)
+				while(curr->sst)
 				{
-					insertIntoBuffer(curr->table, true);
+					std::cout << "REINSERTING" << std::endl;
 					bucket_node* tempnext = curr->next;
+					reinsertBucket(curr);
 					cleanBucket(curr);
 					delete(curr);
 					curr = tempnext;
@@ -210,13 +233,34 @@ class Database {
 			free(temp);
 		}
 		
-		memtab* getTable(unsigned short key)
+		reinsertBucket(bucket_node* b)
+		{//
+			
+			bucket_node* head = buffer_directory[bitHash(curr_buffer_depth, b->sst->key)];
+			if(!head->next)
+			{
+				 buffer_directory[bitHash(curr_buffer_depth, b->sst->key)] = b;
+				 b->next = new bucket_node();
+				 b->next->prev = b;
+			}
+			else
+			{
+				while(head->next)
+					head = head->next;
+				
+				head->prev->next = b;
+				b->next = new bucket_node();
+				b->prev = head->prev;
+			}
+		}
+		
+		SST* getSST(unsigned short key)
 		{//returns the table pointer to table in buffer on success, nullptr on failure
 			bucket_node* head = buffer_directory[int(bitHash(curr_buffer_depth, key))];
 			while(head)
 			{
-				if(head->table->key == key)
-					return head->table;
+				if(head->sst->key == key)
+					return head->sst;
 				
 				if(head->next)
 					head = head->next;
@@ -438,42 +482,7 @@ class Database {
         }
 		void TESTINGBUFFER()
 		{
-			memtable->printInorder();
-			std::cout<< "Insert 1" << std::endl;
-			insertIntoBuffer(memtable);
 			
-			std::cout<< "Insert 2" << std::endl;
-			memtab* tab2 = new memtab(10);
-			tab2->insert(22,5);
-			tab2->insert(23,7);
-			tab2->insert(210,10);
-			insertIntoBuffer(tab2);
-			
-			std::cout<< "Insert 3" << std::endl;
-			memtab* tab3 = new memtab(10);
-			tab3->insert(32,5);
-			tab3->insert(33,7);
-			tab3->insert(310,10);
-			insertIntoBuffer(tab3);
-			
-			std::cout<< "Insert 4" << std::endl;
-			memtab* tab4 = new memtab(10);
-			tab4->insert(432,5);
-			tab4->insert(433,7);
-			tab4->insert(4310,10);
-			insertIntoBuffer(tab4);
-			
-			std::cout<< "Insert 5" << std::endl;
-			memtab* tab5 = new memtab(10);
-			tab5->insert(532,5);
-			tab5->insert(533,7);
-			tab5->insert(5310,10);
-			insertIntoBuffer(tab5);
-
-			//std::cout << int(bitHash(curr_buffer_depth, memtable->key)) << std::endl;
-			getTable(memtable->key)->printInorder();
-			getTable(tab3->key)->printInorder();
-			std::cout<<"----------------------buffer test done----------------------" <<std::endl;		
 		}
         int put(int key, int val) {
             int success = memtable->insert(key, val);
@@ -710,17 +719,17 @@ class Database {
             delete memtable;
         }
 		
-		void print_buffer()
+		/* void printBuffer()
 		{
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
 			{	
 				bucket_node* curr = buffer_directory[i];
 				while(curr && curr->table)
 				{
-					curr->table->printInorder();
+					curr->sst->printInorder();
 					curr = curr->next;
 				}
 			}
-		}
+		} */
 };
 
