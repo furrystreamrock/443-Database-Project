@@ -9,36 +9,8 @@
 #include <time.h>  
 #include <cmath>
 
+
 int STAGE = 0;
-struct SST
-{
-	kv_pair* data;//(kv_pair*)(malloc(SST_BYTES))
-	int minkey;
-	int maxkey;
-	int entries; //must be < MAX_ENTRIES;
-	unsigned short key;
-	SST(): data(nullptr), minkey(0), maxkey(0), key(0) {}
-};
-
-struct bucket_node
-{//Can be set up for either storing AVL trees or an array of KV's + metadata depending on code version
-	bucket_node * prev;
-	bucket_node * next;
-	//memtab * table;	 //archiac
-	
-	SST* sst;
-	
-	bool clockbit;
-	bucket_node(): prev(nullptr), next(nullptr), sst(nullptr), clockbit(false){}
-};
-
-struct node_dll
-{
-	node_dll* next;
-	node_dll* prev;
-	bucket_node* target;
-	node_dll(): next(nullptr), prev(nullptr), target(nullptr){}
-};
 
 
 static unsigned short bitHash(int bits, unsigned short key)
@@ -101,7 +73,7 @@ class Database {
 			lru_tail = nullptr;
 		}
 		
-		void insertIntoBuffer(SST* sst)
+		void insertIntoBuffer(SST* sst, bool reinsert = false)
 		{//inserts table into buffer, evicts if needed
 		//should be done on pages we know aren't already in the buffer
 				
@@ -112,14 +84,12 @@ class Database {
 				else
 					doubleBufferSize();
 			}
-			
 			curr_buffer_entries++;
 			unsigned short hash = bitHash(curr_buffer_depth, sst->key);
 			bucket_node* curr_head = buffer_directory[hash];
 			//std::cout << curr_buffer_depth << std::endl;
 			std::cout << "Buffer pages: " << curr_buffer_entries << std::endl;
 			std::cout << "Inserting at hash: "<<  int(hash) << std::endl;
-			std::cout << "CHECKPOINT 1" << std::endl;
 			while(curr_head->next)
 				curr_head = curr_head->next;
 			
@@ -127,29 +97,26 @@ class Database {
 			curr_head->sst = (SST*)malloc(sizeof(SST));
 			std::memcpy(curr_head->sst, sst, sizeof(SST));
 			
-			std::cout << "CHECKPOINT 2" << std::endl;
 			
-			curr_head->sst->data = (kv_pair*)(malloc(SST_BYTES));
+			curr_head->sst->data = (kv_pair*)(malloc(SST_BYTES*sizeof(kv_pair)));
 			std::memcpy(curr_head->sst->data, sst, SST_BYTES);
 
 			curr_head->next = new bucket_node();
 			curr_head->next->prev = curr_head;
-			std::cout << "CHECKPOINT 3" << std::endl;
 			//stop here if rebuilding from buffer from doubling its size
 
 			//LRU
 			if(evict_policy == 0)
 				lruUpdate(curr_head);
 			
-			node_dll* a = lru_head;
+			node_dll* a = lru_head;//show LRU queue for debug
 			while(a)
 			{
-				std::cout << bitHash(curr_buffer_depth, sst->key) << "|";
+				std::cout << a->target->sst->key << "|";
+				//std::cout << bitHash(curr_buffer_depth, a->target->sst->key) << "|";
 				a = a->next;
 			}
 			std::cout << std::endl;
-
-			std::cout << "CHECKPOINT 4" << std::endl;
 		}	
 		void evict()
 		{//policy dependant
@@ -220,14 +187,11 @@ class Database {
 			for(int i = 0; i < pow(2, curr_buffer_depth-1); i++)
 			{	
 				bucket_node* curr = temp[i];
-				while(curr->sst)
+				while(curr->next)
 				{
-					std::cout << "REINSERTING" << std::endl;
-					bucket_node* tempnext = curr->next;
+					std::cout << "REINSERTING: " << curr->sst->key << std::endl;
 					reinsertBucket(curr);
-					cleanBucket(curr);
-					delete(curr);
-					curr = tempnext;
+					curr = curr->next;
 				}
 			}
 			free(temp);
@@ -249,21 +213,21 @@ class Database {
 					head = head->next;
 				
 				head->prev->next = b;
-				b->next = new bucket_node();
+				b->next = head;
 				b->prev = head->prev;
+				head->prev = b;
 			}
 		}
 		
 		SST* getSST(unsigned short key)
 		{//returns the table pointer to table in buffer on success, nullptr on failure
 			bucket_node* head = buffer_directory[int(bitHash(curr_buffer_depth, key))];
-			while(head)
+			while(head->sst)
 			{
+				
 				if(head->sst->key == key)
 					return head->sst;
-				
-				if(head->next)
-					head = head->next;
+				head = head->next;
 			}
 			return nullptr;
 		}
@@ -481,8 +445,49 @@ class Database {
             return false;
         }
 		void TESTINGBUFFER()
-		{
+		{//populate 5 dummy SST's, and test buffer and directory functionalities. 
+			SST* tab1 = new SST();
+			SST* tab2 = new SST();
+			SST* tab3 = new SST();
+			SST* tab4 = new SST();
+			SST* tab5 = new SST();
 			
+			tab1->key = rand();
+			tab2->key = rand();
+			tab3->key = rand();
+			tab4->key = rand();
+			tab5->key = rand();
+
+			tab1->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
+			tab2->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
+			tab3->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
+			tab4->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
+			tab5->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
+			
+			
+			for(int i = 0; i < 10; i++)
+			{
+				tab1->data[i].key = i;
+				tab1->data[i].value = i;
+				tab2->data[i].key = i+10;
+				tab2->data[i].value = i+10;
+				tab3->data[i].key = i+20;
+				tab3->data[i].value = i+20;
+				tab4->data[i].key = i+30;
+				tab4->data[i].value = i+30;
+				tab5->data[i].key = i+40;
+				tab5->data[i].value = i+40;
+			}
+			std::cout << "----------INSERTING 1----------" << std::endl;
+			insertIntoBuffer(tab1);
+			std::cout << "----------INSERTING 2----------" << std::endl;
+			insertIntoBuffer(tab2);
+			std::cout << "----------INSERTING 3----------" << std::endl;
+			insertIntoBuffer(tab3);
+			std::cout << "----------INSERTING 4----------" << std::endl;
+			insertIntoBuffer(tab4);
+			std::cout << "----------INSERTING 5----------" << std::endl;
+			insertIntoBuffer(tab5);
 		}
         int put(int key, int val) {
             int success = memtable->insert(key, val);
