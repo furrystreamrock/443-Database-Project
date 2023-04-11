@@ -126,21 +126,8 @@ class Database {
 			if(rebuild)
 				return;
 			//LRU
-			node_dll* newLRUhead = new node_dll();
-			newLRUhead->target = curr_head;
-			if(!lru_head)
-			{//first insertion into buffer
-				lru_head = newLRUhead;
-				lru_tail = newLRUhead;
-			}
-			else
-			{//append to head
-				node_dll* temp  = lru_head;
-				lru_head = newLRUhead;
-				lru_head->next = temp;
-				lru_head->next->prev = lru_head;
-			}
-			
+			if(evict_policy == 0)
+				lruUpdate(curr_head);
 		}
 		void evict()
 		{//policy dependant
@@ -153,58 +140,28 @@ class Database {
 		}
 		
 		void lruEvict()
-		{
-			std::cout << "LRU Evicting" << std::endl;
-			node_dll* a = lru_head;
-			while(a)
-			{
-				std::cout << bitHash(curr_buffer_depth, a->target->table->key) << "|";
-				a = a->next;
-			}
-			std::cout << std::endl;
+		{//remove the tail of lru, should free all associated memory in that page as well
 			if(!lru_tail)
-			{
-				std::cerr <<"WARNING, Critical failure: failed to evict any page, check max buffer depth is not 0" << std::endl;
-				return;
-			}
-			bucket_node* toEvict = lru_tail->target;
-			if(!toEvict)
-			{
-				std::cerr <<"WARNING, Critical failure: failed to evict any page." << std::endl;
-				return;
-			}
-			//process the bucket/directory to remove the page
-			std::cout << "Check 1" << std::endl;
-			if(toEvict->prev)
-			{//has something before.
-				toEvict->prev->next = toEvict->next;
-				toEvict->next->prev = toEvict->prev;				
-			}
-			else
-			{//first bucket, need to change directory pointer
-				buffer_directory[bitHash(curr_buffer_depth, toEvict->table->key)] = toEvict->next;
-			}
-			cleanBucket(toEvict);
-			delete(toEvict);
+				std::cerr << "Warning! tried to evict in empty buffer." << std::endl;
 			
-			std::cout << "Check 2" << std::endl;
-			//update the double linked eviction list
-			if(lru_tail->prev)
-			{
-				lru_tail->prev->next = nullptr;//new tail
-				node_dll* temp = lru_tail;//remember address to delete it
-				lru_tail = lru_tail->prev;
-				delete(temp);
-			}
-			else
-			{
-				delete(lru_tail);
-				lru_head = nullptr;
-				lru_tail = nullptr;
-			}
-			std::cout << "Check 3" << std::endl;
-			return;
-			
+			cleanBucket(lru_tail->target);
+			node_dll* temp = lru_tail->prev;
+			std::cout << "Evicting page in bucket :" << bitHash(curr_buffer_depth, lru_tail->target->table->key) << std::endl;
+			delete(lru_tail);
+			lru_tail = temp;
+			if(lru_tail)
+				lru_tail->next = nullptr;
+		}
+		void lruUpdate(bucket_node* target)
+		{//new get or insert updates a page
+			node_dll* new_lru = new node_dll();
+			new_lru->next = lru_head;
+			if(new_lru->next)
+				new_lru->next->prev = new_lru;
+			new_lru->target = target;
+			lru_head = new_lru;
+			if(!lru_tail)
+				lru_tail = new_lru;
 		}
 		void clockEvict()
 		{}
