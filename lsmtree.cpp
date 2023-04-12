@@ -8,10 +8,16 @@
 #include <time.h>  
 #include <cmath>
 #include "objs.cpp"
+#include "bloomfilter.cpp"
+#include <iomanip>
+#include <climits>
+#include <limits.h>
 
 const int PAGE_LENGTH = 4;
 const int LSM_SIZE = 2;
 const int buf_len = 0;
+
+const int TOMBSTONE = INT_MIN;
 
 struct LSM_NODE {
     //LSM_NODE* parent;
@@ -118,21 +124,33 @@ class lsmtree {
             return true;
         }
 
-        //go past the sst metadata
-        bool init_sst(std::ifstream* f, int* sst_num_pages){
+        //read metadata; does NOT close file
+        bool get_meta(std::ifstream* f, int* sst_num_pages, uint32_t* bitmap){
+            if (bitmap != nullptr) {
+                std::string str_bitmap;
+                if (std::getline(*f, str_bitmap, ','))
+                {
+                    *bitmap = stoi(str_bitmap);
+                }
+            
+            }
             std::string str_num_pages;
             if (std::getline(*f, str_num_pages))
             {
                 *sst_num_pages = stoi(str_num_pages);
             }
+
+            return true;
         }
 
         //write the metadata to an sst
         bool write_meta(std::ofstream* output, int sst_num_pages){
 			std::stringstream entries;
-			entries << sst_num_pages << "\n";
+			entries << "4294967295" << "," << sst_num_pages << "\n";
 			std::string meta_out = entries.str();
 			(*output) << meta_out;
+
+            return true;
         }
 
     public:
@@ -195,7 +213,7 @@ class lsmtree {
 
 
 
-        //find the sst file with the page
+        //find the offset from beginning of file, and file ID with the sst number
         bool get_page(int page_num, int* page_origin, int* page_offset) {
             int curr = page_num;
             int offset = 0;
@@ -213,11 +231,93 @@ class lsmtree {
             return true;
         }
 
+        bool read_sst(int page_num, kv_pair** page_data, int* sst_num_pages, uint32_t* bitmap) {
+            bool success = read_meta(page_num, sst_num_pages, bitmap);
+            if (success == false) {
+                return false;
+            }
+            return read_page(page_num, page_data);
+        }
+
+        bool read_meta(int page_num, int* sst_num_pages, uint32_t* bitmap) {
+            int page_origin; 
+            int page_offset;
+            get_page(page_num, &page_origin, &page_offset);
+
+            std::ifstream f(get_file_by_ind(page_origin).c_str());
+            if(!f.is_open())
+            {
+                std::cout << "Failed to open metadata for file w/ id: " << page_origin << std::endl;
+                return false;
+            }
+
+            get_meta(&f, sst_num_pages, bitmap);
+            f.close();
+
+            return true;
+        }
+
+        bool read_page(int page_num, kv_pair** page_data) {
+            int page_origin; 
+            int page_offset;
+            get_page(page_num, &page_origin, &page_offset);
+
+            std::ifstream f(get_file_by_ind(page_origin).c_str());
+            if(!f.is_open())
+            {
+                std::cout << "Failed to open data for file w/ id: " << page_origin << std::endl;
+                return false;
+            }
+
+            //skip past metadata
+            int num_pages;
+            get_meta(&f, &num_pages, nullptr);
+
+            //count and to the beginning
+            int num_lines = std::count(std::istreambuf_iterator<char>(f), 
+                std::istreambuf_iterator<char>(), '\n');
+            f.clear();
+            f.seekg(0);
+
+            //skip past metadata
+            get_meta(&f, &num_pages, nullptr);
+
+            kv_pair* data = (kv_pair*)( malloc(sizeof(kv_pair) * (PAGE_LENGTH)) );
+
+            int curr_lines = 0;
+            int curr_page = 0;
+            int key;
+            int val;
+            while (read_next(&f, &key, &val)){
+                if (curr_page == page_offset) {
+                    data[curr_lines].key = key;
+                    data[curr_lines].value = val;
+                } else if (curr_page > page_offset) {
+                    break;
+                }
+                ++curr_lines;
+                if (curr_lines == PAGE_LENGTH) {
+                    curr_lines = 0;
+                    curr_page++;
+                }
+                if (curr_lines >= num_lines){
+                    break;
+                }
+            }
+
+            *page_data = data;
+
+			f.close();
+            return true;
+        }
+
+
 
         // ensure x < y
         bool merge_file(int file_num_x, int file_num_y, int* new_len){
             const int buffer_size = 4;
 
+            //x is the newer SST
             int next_x_key;
             int next_x_val;
             bool next_x_empty = true;
@@ -243,7 +343,7 @@ class lsmtree {
             f_x.seekg(0);
             
             int num_pages_x;
-            init_sst(&f_x, &num_pages_x);
+            get_meta(&f_x, &num_pages_x, nullptr);
 
             //========================= open y =========================
             std::ifstream f_y(get_file_by_ind(file_num_y).c_str());
@@ -260,13 +360,24 @@ class lsmtree {
             f_y.seekg(0);
 
             int num_pages_y;
-            init_sst(&f_y, &num_pages_y);
+            get_meta(&f_y, &num_pages_y,  nullptr);
 
             //========================= open z =========================
             char const* temp_file_name = get_next_file_name().c_str();
 			std::ofstream output(temp_file_name);
 
+            //MERGE
+            bloomfilter* filter = new bloomfilter;
+
+
 			std::stringstream entries;
+
+            //make space for filter metadata
+            entries << "4294967295" << "\n";
+            std::string file_out_meta = entries.str();
+            output << file_out_meta;
+            entries.str("");
+            
             int max_entries = 4;
             int num_entries = 0;
             int new_file_len = 0;
@@ -282,12 +393,20 @@ class lsmtree {
                 }
 
                 int key; int val;
-                if (next_x_key < next_y_key) {
+                if (next_x_key == next_y_key) {
+                    //update or delete
+                    entries << next_x_key << "," << next_x_val << "\n";
+                    next_x_empty = true;
+                    next_y_empty = true;
+                    filter->insert(next_x_key);
+                } else if (next_x_key < next_y_key) {
 				    entries << next_x_key << "," << next_x_val << "\n";
                     next_x_empty = true;
+                    filter->insert(next_x_key);
                 } else {
 				    entries << next_y_key << "," << next_y_val << "\n";
                     next_y_empty = true;
+                    filter->insert(next_y_key);
                 }
                 new_file_len++;
 
@@ -299,7 +418,15 @@ class lsmtree {
                 }
             }
 
+            output.clear();
+            output.seekp(0);
+
+            output << std::setfill('0') << std::setw(10) << filter->get_bitmap();
+
 			output.close();
+
+			f_x.close();
+			f_y.close();
 
             //just merged two files; mark greater one deleted.
             file_bitmap[file_num_y] = false;
@@ -316,7 +443,8 @@ class lsmtree {
                 //only supports LSM_SIZE == 2
                 int file_num = node->page_origin[0];
                 int new_len = 0;
-                merge_file(node->page_origin[0], node->page_origin[1], &new_len);
+                //newest files goes first
+                merge_file(node->page_origin[1], node->page_origin[0], &new_len);
                 node->clear();
 
                 if (node->child == nullptr) {
@@ -340,6 +468,8 @@ class lsmtree {
             
             this->root->add_file(file_num, 1);
             flush_merge_step(this->root);
+            
+            return true;
         }
 
         bool save_tree(){
@@ -377,7 +507,7 @@ class lsmtree {
             if(!f.is_open())
             {
                 std::cout << "Failed to open lsmt" << std::endl;
-                return nullptr;
+                return false;
             }
 
             int num_lines = std::count(std::istreambuf_iterator<char>(f), 

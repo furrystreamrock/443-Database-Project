@@ -5,7 +5,6 @@
 #include <string>
 #include <iostream>
 #include "btree.cpp"
-#include "lsmtree.cpp"
 #include <random>
 #include <time.h>  
 #include <cmath>
@@ -466,6 +465,16 @@ class Database {
             return success;
         }
 
+        int update(int key, int val) {
+            //TODO figure out if we have to make sure key already exists; or maybe we dont need a seperate method for updating
+            return put(key, val);
+        }
+        
+        int del(int key) {
+            //delete
+            return put(key, TOMBSTONE);
+        }
+
         void scan(int min, int max, kv_pair** result, int* result_length) {
             memtab* curr = memtable;
             //TODO: init linked list
@@ -474,6 +483,7 @@ class Database {
 
             std::cout << "Scan memtree: " << std::endl;
 
+/*
             int curr_ind = 0;
             if (curr_ind == 0) {
                 list_node* sub_result;
@@ -491,6 +501,7 @@ class Database {
 
                 curr_ind++;
             }
+            */
 
             std::cout << "Scan sst begin: " << std::endl;
 
@@ -558,22 +569,66 @@ class Database {
                     }
 
                     //connect results
+
+                    //TODO: merge and take out duplicates
                     if (sub_result != nullptr) {
                         if (total_result == nullptr) {
                             total_result = sub_result;
                             //std::cout << "new total result length "<< total_result->length << std::endl;
                         } else {
-                            list_node* end = get_list_end(total_result);
-                            if (sub_result != nullptr) {
-                                int sub_len = 0;
-                                sub_len = sub_result->length;
-                                end->next = sub_result;
-                                total_result->length = total_result->length + sub_len;
-                                //std::cout << "new total result length 2 "<< total_result->length << std::endl;
+                            int length = total_result->length;
+
+                            list_node* curr_total = total_result;
+                            list_node* curr_new = sub_result;
+                            list_node* prev_total = nullptr;
+                            while (curr_new != nullptr) {
+                                list_node* next_new = curr_new->next;
+                                if (curr_total == nullptr) {
+                                    //add to end
+                                    prev_total->next = curr_new;
+                                    curr_total = curr_new;
+                                    curr_new->next = nullptr;
+                                    
+                                    total_result->length++;
+                                    curr_new = next_new;
+                                } else if (curr_new->key == curr_total->key) {
+                                    //duplicate, keep the newer one (should alr be in the total)
+                                    curr_new = curr_new->next;
+                                } else if (curr_new->key < curr_total->key) {
+                                    //add middle
+                                    curr_new->next = curr_total;
+                                    if (prev_total != nullptr) {
+                                        prev_total->next = curr_new;
+                                    } else {
+                                        total_result = curr_new;
+                                        total_result->length = length;
+                                    }
+
+                                    total_result->length++;
+                                    curr_new = next_new;
+                                } else {
+                                    //cant add here
+
+                                }
+
+                                prev_total = curr_total;
+                                if (curr_total != nullptr){
+                                    curr_total = curr_total->next;
+                                }
                             }
+
+                            
+                            // list_node* end = get_list_end(total_result);
+                            // if (sub_result != nullptr) {
+                            //     int sub_len = 0;
+                            //     sub_len = sub_result->length;
+                            //     end->next = sub_result;
+                            //     total_result->length = total_result->length + sub_len;
+                            //     //std::cout << "new total result length 2 "<< total_result->length << std::endl;
+                            // }
                         }
                     }
-                }         
+                }
                 
                 //TODO: someth in memtab appears to delete the last loaded sst as well
                 //if (i != num_files) {
