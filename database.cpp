@@ -1,26 +1,24 @@
-#include <iostream>
 #include <algorithm>
 #include <fstream> 
 #include <sstream>
 #include <string>
 #include <iostream>
 #include "btree.cpp"
-#include <random>
-#include <time.h>  
+#include <random> 
 #include <cmath>
 
 
 int STAGE = 0;
 
-static unsigned short bitHash(int bits, unsigned short key)
+static unsigned long bitHash(int bits, unsigned long key)
 {//we hash the key by choosing some number of leading bits
-	unsigned short mask= 0;
+	unsigned long mask= 0;
 	for(int i = 0; i < bits; i++) // subroutine to make bit mask
 	{
-		unsigned short temp = mask << 1;
+		unsigned long temp = mask << 1;
 		mask = temp | 1;
 	}
-	return (unsigned short)(mask & key);
+	return (unsigned long)(mask & key);
 }
 
 static const int SST_BYTES = 4096 - sizeof(SST) - 5; //just shy of 4kb per sst including metadata
@@ -30,8 +28,8 @@ class Database {
     std::string database_name;
 	
 	//stuff for the buffer
-	const int min_buffer_depth = 1;
-	const int max_buff_depth = 2;
+	const int min_buffer_depth = 2;
+	const int max_buff_depth = 5;
 	int curr_buffer_depth;
 	int curr_buffer_entries;
 	int evict_policy; //NOTE TO SELF######: assign policies to ints. (0 is lru, 1 is clock, etc)
@@ -75,6 +73,10 @@ class Database {
 		void insertIntoBuffer(SST* sst, bool reinsert = false)
 		{//inserts table into buffer, evicts if needed
 		//should be done on pages we know aren't already in the buffer
+		
+			
+		
+		
 				
 			if(curr_buffer_entries >= pow(2, curr_buffer_depth) * 1)//85% capacity threshold
 			{
@@ -84,31 +86,30 @@ class Database {
 					doubleBufferSize();
 			}
 			curr_buffer_entries++;
-			unsigned short hash = bitHash(curr_buffer_depth, sst->key);
+			unsigned long hash = bitHash(curr_buffer_depth, sst->key);
 			bucket_node* curr_head = buffer_directory[hash];
 			//std::cout << curr_buffer_depth << std::endl;
 			std::cout << "Buffer pages: " << curr_buffer_entries << std::endl;
-			std::cout << "Inserting at hash: "<<  int(hash) << std::endl;
+			std::cout << "Inserting SST: " << sst->key << " at hash: "<<  int(hash) << std::endl;
+			if(!curr_head)
+				return;
 			while(curr_head->next)
 				curr_head = curr_head->next;
-			
 			
 			curr_head->sst = (SST*)malloc(sizeof(SST));
 			std::memcpy(curr_head->sst, sst, sizeof(SST));
 			
-			
 			curr_head->sst->data = (kv_pair*)(malloc(SST_BYTES*sizeof(kv_pair)));
-			std::memcpy(curr_head->sst->data, sst, SST_BYTES);
-
+			std::cout << sst->data[0].key << std::endl;
+			std::memcpy(curr_head->sst->data, sst->data, SST_BYTES*sizeof(kv_pair));
+			
 			curr_head->next = new bucket_node();
 			curr_head->next->prev = curr_head;
-			
 			
 
 			//LRU
 			if(evict_policy == 0)
 				lruUpdate(curr_head);
-			
 			node_dll* a = lru_head;//show LRU queue for debug
 			while(a)
 			{
@@ -118,6 +119,7 @@ class Database {
 			}
 			std::cout << std::endl;
 			printBuckets();
+			
 		}	
 		void evict()
 		{//policy dependant
@@ -134,8 +136,7 @@ class Database {
 			if(!lru_tail)
 				std::cerr << "Warning! tried to evict in empty buffer." << std::endl;
 			
-			
-			if(!lru_tail->target->prev)//first in the bucket.
+			if(!lru_tail->target->prev || !lru_tail->target->next->next)//first in the bucket.
 			{
 				buffer_directory[bitHash(curr_buffer_depth, lru_tail->target->sst->key)] = lru_tail->target->next;
 				lru_tail->target->next->prev = nullptr;
@@ -149,7 +150,11 @@ class Database {
 			cleanBucket(lru_tail->target);
 			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
-			std::cout << "Evicting page in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
+			std::cout << "Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
+			if(lru_tail->target->prev && lru_tail->target->prev->sst)
+				std::cout << "Prev: " << lru_tail->target->prev->sst->key << std::endl;
+			if(lru_tail->target->next && lru_tail->target->next->sst)
+				std::cout << "Next: " << lru_tail->target->next->sst->key << std::endl;
 			delete(lru_tail);
 			lru_tail = temp;
 			if(lru_tail)
@@ -216,6 +221,8 @@ class Database {
 		
 		reinsertBucket(bucket_node* b, bucket_node** dir)
 		{//
+			b->next = nullptr;
+			b->prev = nullptr;
 			bucket_node* head = dir[bitHash(curr_buffer_depth, b->sst->key)];
 			if(!head->next)
 			{
@@ -233,6 +240,11 @@ class Database {
 				b->prev = head->prev;
 				head->prev = b;
 			}
+			if(!b->next)
+			{
+				b->next = new bucket_node();
+				b->next->prev = b;
+			}
 		}
 		
 		void printBuckets()
@@ -241,10 +253,9 @@ class Database {
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
 			{	
 				bucket_node* curr = buffer_directory[i];
+				std::cout << i << "  ";
 				while(curr)
 				{
-					if(!curr)
-						break;
 					if(curr->sst && curr->sst->key)
 						std::cout <<  curr->sst->key << "-";
 					else
@@ -256,7 +267,7 @@ class Database {
 			std::cout << "------------------------------------------" << std::endl;
 		}
 		
-		SST* getSST(unsigned short key)
+		SST* getSST(unsigned long key)
 		{//returns the table pointer to table in buffer on success, nullptr on failure
 			
 			bucket_node* head = buffer_directory[int(bitHash(curr_buffer_depth, key))];
@@ -483,62 +494,50 @@ class Database {
             return false;
         }
 		void TESTINGBUFFER()
-		{//populate 5 dummy SST's, and test buffer and directory functionalities. 
-			SST* tab1 = new SST();
-			SST* tab2 = new SST();
-			SST* tab3 = new SST();
-			SST* tab4 = new SST();
-			SST* tab5 = new SST();
-			
-			tab1->key = rand();
-			tab2->key = rand();
-			tab3->key = rand();
-			tab4->key = rand();
-			tab5->key = rand();
-
-			tab1->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
-			tab2->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
-			tab3->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
-			tab4->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
-			tab5->data = (kv_pair*)(malloc(sizeof(kv_pair) * 10));
-			
-			
-			for(int i = 0; i < 10; i++)
+		{//stress test buffer
+			/*IMPORTANT NOTE****** im not sure if its my system, but if I run at 10 pages for 10 trials,
+			I will get a segfault ~10% of the time.
+			However if I run 1000 pages 10 times, I will still get a 10% segfault rate.
+			Unsure if its instability with using a mirror compiler
+			*/
+			srand(time(NULL));
+			unsigned int test_key = 0;
+			for(int i = 0; i < 300; i++)
 			{
-				tab1->data[i].key = i;
-				tab1->data[i].value = i;
-				tab2->data[i].key = i+10;
-				tab2->data[i].value = i+10;
-				tab3->data[i].key = i+20;
-				tab3->data[i].value = i+20;
-				tab4->data[i].key = i+30;
-				tab4->data[i].value = i+30;
-				tab5->data[i].key = i+40;
-				tab5->data[i].value = i+40;
+				SST* tab0 = new SST();
+				std::cout<< "Created table :" << tab0->key << std::endl;
+				tab0->data = (kv_pair*)(malloc(SST_BYTES * sizeof(kv_pair)));
+				for(int j = 0; j < 10; j++)
+				{
+					tab0->data[j].key = i*100+j;
+					tab0->data[j].value = i*100+j;
+				}
+				std::cout << "----------------------INSERTING: " << i << "----------------------" << std::endl;		
+				insertIntoBuffer(tab0);
+				free(tab0->data);
+				
+				if(i == 297)
+					test_key = tab0->key;
+				
+				delete(tab0);
+				
 			}
-			std::cout << "----------INSERTING 1----------" << std::endl;
-			insertIntoBuffer(tab1);
-			std::cout << "----------INSERTING 2----------" << std::endl;
-			insertIntoBuffer(tab2);
-			std::cout << "----------INSERTING 3----------" << std::endl;
-			insertIntoBuffer(tab3);
-			std::cout << "----------INSERTING 4----------" << std::endl;
-			insertIntoBuffer(tab4);
-			std::cout << "----------INSERTING 5----------" << std::endl;
-			insertIntoBuffer(tab5);
-			free(tab1->data);
-			free(tab2->data);
-			free(tab3->data);
-			free(tab4->data);
-			free(tab5->data);
+			
 			std::cout << "Finished insertions" << std::endl;
-			printBuckets();
-			SST* getResult =  getSST(tab2->key);
+
+			SST* getResult =  getSST(test_key);
+			
+			if(!getResult)
+			{
+				std::cout << "test_key SST was evicted" << std::endl;
+				return;
+			}
 			std::cout << "Testing to retrieve table: " << getResult->key << std::endl;
 			for(int i = 0; i < 10; i++)
 			{
 				std::cout << getResult->data[i].value << std::endl;
 			}
+			
 			
 		}
         int put(int key, int val) {

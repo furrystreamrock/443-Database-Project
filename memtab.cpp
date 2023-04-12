@@ -242,7 +242,7 @@ class memtab
 		}
 	public:
 		Node* root;
-		unsigned short key;//used for hashing 
+		unsigned long key;//used for hashing 
 		bool isFull()
 		{
 			//std::cout << entries << "/" << memtable_size << std::endl;

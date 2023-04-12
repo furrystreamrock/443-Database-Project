@@ -1,10 +1,19 @@
+#include <time.h> 
+#include <iostream>
+
 struct kv_pair
 {//kv pair
 	int key;
 	int value;
 	kv_pair(int a, int  b) : key(a), value(b){}
 };
-
+static unsigned long getSSTKey()
+{//uniformly created key
+	unsigned long random = 0;	
+	for(int i = 0; i < sizeof(long)*8; i++)
+		random += (rand()%2) << i;
+	return random;
+}
 struct list_node
 {//linked list node
 	int key;
@@ -30,8 +39,8 @@ struct SST
 	int minkey;
 	int maxkey;
 	int entries; //must be < MAX_ENTRIES;
-	unsigned short key;//hashable key
-	SST(): data(nullptr), minkey(0), maxkey(0), key(0) {}
+	unsigned long key;//hashable key
+	SST(): data(nullptr), minkey(0), maxkey(0), key(getSSTKey()) {}
 };
 
 struct bucket_node
