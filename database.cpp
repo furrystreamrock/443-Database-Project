@@ -12,7 +12,6 @@
 
 int STAGE = 0;
 
-
 static unsigned short bitHash(int bits, unsigned short key)
 {//we hash the key by choosing some number of leading bits
 	unsigned short mask= 0;
@@ -103,7 +102,8 @@ class Database {
 
 			curr_head->next = new bucket_node();
 			curr_head->next->prev = curr_head;
-			//stop here if rebuilding from buffer from doubling its size
+			
+			
 
 			//LRU
 			if(evict_policy == 0)
@@ -117,6 +117,7 @@ class Database {
 				a = a->next;
 			}
 			std::cout << std::endl;
+			printBuckets();
 		}	
 		void evict()
 		{//policy dependant
@@ -132,6 +133,19 @@ class Database {
 		{//remove the tail of lru, should free all associated memory in that page as well
 			if(!lru_tail)
 				std::cerr << "Warning! tried to evict in empty buffer." << std::endl;
+			
+			
+			if(!lru_tail->target->prev)//first in the bucket.
+			{
+				buffer_directory[bitHash(curr_buffer_depth, lru_tail->target->sst->key)] = lru_tail->target->next;
+				lru_tail->target->next->prev = nullptr;
+			}
+			else
+			{
+				lru_tail->target->prev->next = lru_tail->target->next;
+				lru_tail->target->next->prev = lru_tail->target->prev;
+			}
+			
 			cleanBucket(lru_tail->target);
 			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
@@ -171,39 +185,41 @@ class Database {
 				return;
 			}
 			curr_buffer_depth++;
-			
-			bucket_node ** temp = (bucket_node**)(malloc(pow(2, curr_buffer_depth-1) * sizeof(bucket_node*))); //hold the pointers to the buckets in temp.
-			std::memcpy(temp, buffer_directory, pow(2,curr_buffer_depth-1) * sizeof(bucket_node*));
-			
-			free(buffer_directory);
+						
 			//new directory with double the size.
-			std::cout << "Building directory with new depth :" << curr_buffer_depth << std::endl;
-			buffer_directory = (bucket_node**)(malloc(pow(2,curr_buffer_depth) * sizeof(bucket_node*)));
+			bucket_node** new_buffer_directory = (bucket_node**)(malloc(pow(2,curr_buffer_depth) * sizeof(bucket_node*)));
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
 			{	
-				buffer_directory[i] = new bucket_node();
+				new_buffer_directory[i] = new bucket_node();
 			}
 			//re insert previous directory into the new one.
+			
 			for(int i = 0; i < pow(2, curr_buffer_depth-1); i++)
 			{	
-				bucket_node* curr = temp[i];
-				while(curr->next)
+				bucket_node* curr = buffer_directory[i];
+				while(curr)
 				{
-					std::cout << "REINSERTING: " << curr->sst->key << std::endl;
-					reinsertBucket(curr);
-					curr = curr->next;
+					bucket_node* temp = (bucket_node*)curr->next;
+					if(!curr)//somehow segfaulting without this line
+						break;
+					if(curr->sst)
+					{
+						std::cout << "Re-inserting SST: " << curr->sst->key << std::endl;
+						reinsertBucket(curr, new_buffer_directory);
+					}
+					curr = temp;
 				}
 			}
-			free(temp);
+			free(buffer_directory);
+			buffer_directory = new_buffer_directory;
 		}
 		
-		reinsertBucket(bucket_node* b)
+		reinsertBucket(bucket_node* b, bucket_node** dir)
 		{//
-			
-			bucket_node* head = buffer_directory[bitHash(curr_buffer_depth, b->sst->key)];
+			bucket_node* head = dir[bitHash(curr_buffer_depth, b->sst->key)];
 			if(!head->next)
 			{
-				 buffer_directory[bitHash(curr_buffer_depth, b->sst->key)] = b;
+				 dir[bitHash(curr_buffer_depth, b->sst->key)] = b;
 				 b->next = new bucket_node();
 				 b->next->prev = b;
 			}
@@ -219,10 +235,32 @@ class Database {
 			}
 		}
 		
+		void printBuckets()
+		{
+			std::cout << "------------------------------------------" << std::endl;
+			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
+			{	
+				bucket_node* curr = buffer_directory[i];
+				while(curr)
+				{
+					if(!curr)
+						break;
+					if(curr->sst && curr->sst->key)
+						std::cout <<  curr->sst->key << "-";
+					else
+						std::cout <<  "*" << "-";
+					curr = curr->next;
+				}
+				std::cout << std::endl;
+			}
+			std::cout << "------------------------------------------" << std::endl;
+		}
+		
 		SST* getSST(unsigned short key)
 		{//returns the table pointer to table in buffer on success, nullptr on failure
+			
 			bucket_node* head = buffer_directory[int(bitHash(curr_buffer_depth, key))];
-			while(head->sst)
+			while(head && head->sst && head->next)
 			{
 				
 				if(head->sst->key == key)
@@ -488,6 +526,20 @@ class Database {
 			insertIntoBuffer(tab4);
 			std::cout << "----------INSERTING 5----------" << std::endl;
 			insertIntoBuffer(tab5);
+			free(tab1->data);
+			free(tab2->data);
+			free(tab3->data);
+			free(tab4->data);
+			free(tab5->data);
+			std::cout << "Finished insertions" << std::endl;
+			printBuckets();
+			SST* getResult =  getSST(tab2->key);
+			std::cout << "Testing to retrieve table: " << getResult->key << std::endl;
+			for(int i = 0; i < 10; i++)
+			{
+				std::cout << getResult->data[i].value << std::endl;
+			}
+			
 		}
         int put(int key, int val) {
             int success = memtable->insert(key, val);
