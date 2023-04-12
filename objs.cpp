@@ -47,12 +47,13 @@ struct bucket_node
 {//Can be set up for either storing AVL trees or an array of KV's + metadata depending on code version
 	bucket_node * prev;
 	bucket_node * next;
+	void* lru_node;//set to this bucket's LRU node
 	//memtab * table;	 //archiac
 	
 	SST* sst;
 	
 	bool clockbit;
-	bucket_node(): prev(nullptr), next(nullptr), sst(nullptr), clockbit(false){}
+	bucket_node(): prev(nullptr), next(nullptr), sst(nullptr), clockbit(true), lru_node(nullptr){}
 };
 
 struct node_dll

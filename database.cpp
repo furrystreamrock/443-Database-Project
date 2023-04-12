@@ -28,14 +28,14 @@ class Database {
     std::string database_name;
 	
 	//stuff for the buffer
-	const int min_buffer_depth = 2;
+	const int min_buffer_depth = 3;
 	const int max_buff_depth = 5;
 	int curr_buffer_depth;
 	int curr_buffer_entries;
 	int evict_policy; //NOTE TO SELF######: assign policies to ints. (0 is lru, 1 is clock, etc)
 	node_dll* lru_head;
 	node_dll* lru_tail;
-	
+	node_dll* clock_pointer;
 	
     int memtable_size;
     memtab* memtable;
@@ -65,23 +65,27 @@ class Database {
 				buffer_directory[i] = new bucket_node();
 			}
 			curr_buffer_entries = 0;
-			evict_policy = 0;
+			evict_policy = 1;
 			lru_head = nullptr;
 			lru_tail = nullptr;
+			clock_pointer = nullptr;
 		}
+		
 		
 		void insertIntoBuffer(SST* sst, bool reinsert = false)
 		{//inserts table into buffer, evicts if needed
 		//should be done on pages we know aren't already in the buffer
 			
 				
-			if(curr_buffer_entries >= pow(2, curr_buffer_depth) * 1)//85% capacity threshold
+			if(curr_buffer_entries >= pow(2, curr_buffer_depth) * 1)//'full' capacity threshold
 			{
 				if(curr_buffer_depth >= max_buff_depth)
 					evict();
 				else
 					doubleBufferSize();
-			}
+			} 
+
+				
 			curr_buffer_entries++;
 			unsigned long hash = bitHash(curr_buffer_depth, sst->key);
 			bucket_node* curr_head = buffer_directory[hash];
@@ -106,20 +110,47 @@ class Database {
 
 			//LRU
 			if(evict_policy == 0)
-				lruUpdate(curr_head);
-			node_dll* a = lru_head;//show LRU queue for debug
-			while(a)
 			{
-				std::cout << a->target->sst->key << "|";
-				//std::cout << bitHash(curr_buffer_depth, a->target->sst->key) << "|";
-				a = a->next;
+				lruUpdate(curr_head);
+				node_dll* a = lru_head;//show LRU queue for debug
+				while(a)
+				{
+					std::cout << a->target->sst->key << "|";
+					//std::cout << bitHash(curr_buffer_depth, a->target->sst->key) << "|";
+					a = a->next;
+				}
+				std::cout << std::endl;
 			}
-			std::cout << std::endl;
+			//clock
+			if(evict_policy == 1)
+			{
+				if(!clock_pointer)
+				{
+					clock_pointer = new node_dll();
+					clock_pointer->next = clock_pointer;
+					clock_pointer->prev = clock_pointer;
+					clock_pointer->target = curr_head;
+				}
+				else
+				{//insert it write behind the clock pointer in the circle queue
+					node_dll* before = clock_pointer->prev->prev;
+					node_dll* n = new node_dll();
+					n->target = curr_head;
+					
+					before->next = n;
+					n->prev = before;
+					n->next = clock_pointer;
+					clock_pointer->prev = n;
+				}
+			}
 			printBuckets();
 			
 		}	
 		void evict()
 		{//policy dependant
+			if(curr_buffer_entries-1 <= pow(2, curr_buffer_depth) *0.3)//less than 30% full after evicting this page
+				halveBufferSize();
+				
 			if(evict_policy == 0)
 				lruEvict();
 			if(evict_policy == 1)
@@ -130,7 +161,6 @@ class Database {
 		
 		void lruEvict()
 		{//remove the tail of lru, should free all associated memory in that page as well
-			std::cout << "check 1" << std::endl;
 			if(!lru_tail)
 				std::cerr << "Warning! tried to evict in empty buffer." << std::endl;
 			
@@ -144,11 +174,10 @@ class Database {
 				lru_tail->target->prev->next = lru_tail->target->next;
 				lru_tail->target->next->prev = lru_tail->target->prev;
 			}
-			std::cout << "check 2" << std::endl;
 			cleanBucket(lru_tail->target);
 			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
-			std::cout << "Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
+			std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
 /* 			if(lru_tail->target->prev && lru_tail->target->prev->sst)
 				std::cout << "Prev: " << lru_tail->target->prev->sst->key << std::endl;
 			if(lru_tail->target->next && lru_tail->target->next->sst)
@@ -158,10 +187,36 @@ class Database {
 			lru_tail = temp;
 			if(lru_tail)
 				lru_tail->next = nullptr;
-			std::cout << "check 3" << std::endl;
+			
 		}
 		void lruUpdate(bucket_node* target)
 		{//new get or insert updates a page
+			//first check if its already in queue, if it is, refresh it to the front of the queue
+			
+			if(target->lru_node)
+			{
+				std::cout << target->sst->key << std::endl;
+				node_dll* n = (node_dll*) (target->lru_node);
+				std::cout << n->target->sst->key << std::endl;
+				if(n->prev)
+					std::cout << n->prev->target->sst->key << std::endl;
+				if(n->next)
+					std::cout << n->next->target->sst->key << std::endl;
+				//std::cin.get();
+				if(!n->prev)//n is the very first node
+					return;
+					
+				if(n->prev)
+					n->prev->next = n->next;
+				if(n->next)
+					n->next->prev = n->prev;
+								
+				n->next = lru_head;
+				n->prev = nullptr;
+				lru_head = n;
+				return;
+			}
+			
 			node_dll* new_lru = new node_dll();
 			new_lru->next = lru_head;
 			if(new_lru->next)
@@ -170,9 +225,47 @@ class Database {
 			lru_head = new_lru;
 			if(!lru_tail)
 				lru_tail = new_lru;
+			target->lru_node = new_lru;
 		}
 		void clockEvict()
-		{}
+		{
+			std::cout << "Clock Evicting " << clock_pointer->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, clock_pointer->target->sst->key) << std::endl;
+			if(!clock_pointer->target->prev)//first in the bucket.
+			{
+				buffer_directory[bitHash(curr_buffer_depth, clock_pointer->target->sst->key)] = clock_pointer->target->next;
+				clock_pointer->target->next->prev = nullptr;
+			}
+			else
+			{
+				clock_pointer->target->prev->next = clock_pointer->target->next;
+				clock_pointer->target->next->prev = clock_pointer->target->prev;
+			}
+			
+			//handle the clock circle queue
+			if(clock_pointer->next = clock_pointer)//for some reason we are evicting the only single page in buffer?? ok
+			{
+				cleanBucket(clock_pointer->target);
+				delete(clock_pointer);
+				clock_pointer = nullptr;
+				return;
+			}
+			//at least 2 pages: 
+			while(clock_pointer->target->clockbit)
+			{//move the hand foward, looking for first 0 bit 
+				clock_pointer->target->clockbit = false;
+				clock_pointer = clock_pointer->next;
+			}
+			
+			clock_pointer->prev->next = clock_pointer->next;
+			clock_pointer->next->prev = clock_pointer->prev;
+			//process the bucket's delete
+			node_dll* temp = clock_pointer->next;
+			cleanBucket(clock_pointer->target);
+			delete(clock_pointer);
+			clock_pointer = temp;
+
+			
+		}
 		void cleanBucket(bucket_node * n)
 		{//evict a certain memtab
 			free(n->sst->data);
@@ -184,7 +277,6 @@ class Database {
 			std::cout << "Doubling buffer capacity, new depth: " << curr_buffer_depth + 1 << std::endl;
 			if(curr_buffer_depth >= max_buff_depth)
 			{
-				curr_buffer_depth--;
 				std::cerr << "Warning, can't double buffer size" << std::endl;
 				return;
 			}
@@ -211,6 +303,48 @@ class Database {
 						std::cout << "Re-inserting SST: " << curr->sst->key << std::endl;
 						reinsertBucket(curr, new_buffer_directory);
 					}
+					else
+						delete(curr);//dead end marker
+					curr = temp;
+				}
+			}
+			free(buffer_directory);
+			buffer_directory = new_buffer_directory;
+		}
+		
+		void halveBufferSize()
+		{
+			std::cout << "Halving buffer capacity, new depth: " << curr_buffer_depth - 1 << std::endl;
+			if(curr_buffer_depth <= min_buffer_depth)
+			{
+				std::cerr << "Warning, can't double buffer size" << std::endl;
+				return;
+			}
+			curr_buffer_depth--;
+						
+			//new directory with half the size.
+			bucket_node** new_buffer_directory = (bucket_node**)(malloc(pow(2,curr_buffer_depth) * sizeof(bucket_node*)));
+			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
+			{	
+				new_buffer_directory[i] = new bucket_node();
+			}
+			//re insert previous directory into the new one.
+			
+			for(int i = 0; i < pow(2, curr_buffer_depth+1); i++)
+			{	
+				bucket_node* curr = buffer_directory[i];
+				while(curr)
+				{
+					bucket_node* temp = (bucket_node*)curr->next;
+					if(!curr)//somehow segfaulting without this line
+						break;
+					if(curr->sst)
+					{
+						std::cout << "Re-inserting SST: " << curr->sst->key << std::endl;
+						reinsertBucket(curr, new_buffer_directory);
+					}
+					else
+						delete(curr);//dead end marker
 					curr = temp;
 				}
 			}
@@ -272,9 +406,21 @@ class Database {
 			bucket_node* head = buffer_directory[int(bitHash(curr_buffer_depth, key))];
 			while(head && head->sst && head->next)
 			{
-				
 				if(head->sst->key == key)
+				{
+					lruUpdate(head);
+					head->clockbit = true;
+					/* node_dll* a = lru_head;//show LRU queue for debug
+					while(a)
+					{
+						std::cout << a->target->sst->key << "|";
+						//std::cout << bitHash(curr_buffer_depth, a->target->sst->key) << "|";
+						a = a->next;
+					}
+					std::cout << std::endl; */
+					
 					return head->sst;
+				}
 				head = head->next;
 			}
 			return nullptr;
@@ -515,10 +661,16 @@ class Database {
 				insertIntoBuffer(tab0);
 				free(tab0->data);
 				
-				if(i == 297)
+				if(i == 3)
+				{
 					test_key = tab0->key;
+					
+				}
 				
+				if(i%5 == 0 && i >= 3)
+					getSST(test_key);
 				delete(tab0);
+				
 				
 			}
 			
