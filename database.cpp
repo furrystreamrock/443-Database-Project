@@ -73,10 +73,7 @@ class Database {
 		void insertIntoBuffer(SST* sst, bool reinsert = false)
 		{//inserts table into buffer, evicts if needed
 		//should be done on pages we know aren't already in the buffer
-		
 			
-		
-		
 				
 			if(curr_buffer_entries >= pow(2, curr_buffer_depth) * 1)//85% capacity threshold
 			{
@@ -133,10 +130,11 @@ class Database {
 		
 		void lruEvict()
 		{//remove the tail of lru, should free all associated memory in that page as well
+			std::cout << "check 1" << std::endl;
 			if(!lru_tail)
 				std::cerr << "Warning! tried to evict in empty buffer." << std::endl;
 			
-			if(!lru_tail->target->prev || !lru_tail->target->next->next)//first in the bucket.
+			if(!lru_tail->target->prev)//first in the bucket.
 			{
 				buffer_directory[bitHash(curr_buffer_depth, lru_tail->target->sst->key)] = lru_tail->target->next;
 				lru_tail->target->next->prev = nullptr;
@@ -146,20 +144,21 @@ class Database {
 				lru_tail->target->prev->next = lru_tail->target->next;
 				lru_tail->target->next->prev = lru_tail->target->prev;
 			}
-			
+			std::cout << "check 2" << std::endl;
 			cleanBucket(lru_tail->target);
 			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
 			std::cout << "Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
-			if(lru_tail->target->prev && lru_tail->target->prev->sst)
+/* 			if(lru_tail->target->prev && lru_tail->target->prev->sst)
 				std::cout << "Prev: " << lru_tail->target->prev->sst->key << std::endl;
 			if(lru_tail->target->next && lru_tail->target->next->sst)
 				std::cout << "Next: " << lru_tail->target->next->sst->key << std::endl;
+ */
 			delete(lru_tail);
 			lru_tail = temp;
 			if(lru_tail)
 				lru_tail->next = nullptr;
-			
+			std::cout << "check 3" << std::endl;
 		}
 		void lruUpdate(bucket_node* target)
 		{//new get or insert updates a page
