@@ -499,8 +499,14 @@ class SST_directory
 		}
 	
 	public: 
-		unsigned long get(int key, bool* loaded)
+		SST_directory()
+		{
+			root = nullptr;
+		}
+		unsigned long get(int key, bool* loaded, bool* found)
 		{//return the sst key for the given key. loaded is set to true when the target SST is in the buffer, false otherwise
+		//if found flag is set to true, otherwise false;
+			*found = false;
 			SST_node* curr = root;
 			*loaded  = false;
 			while(true)
@@ -512,12 +518,13 @@ class SST_directory
 					{
 						if(curr->sst)
 							*loaded = true;
+						*found = true;
 						return curr->sst_key;
 					}
 					else
 					{
 						std::cerr << "WARNING: tried to get key not in Database!" << std::endl;
-						return 0;//Indicates that we could not find the sst. (chance of key being 0 is like .0000001% so probably safe? kinda bad)
+						return 0;//Indicates that we could not find the sst. 
 					}
 				}
 				else

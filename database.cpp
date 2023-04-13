@@ -7,7 +7,6 @@
 #include <random> 
 #include <cmath>
 
-
 int STAGE = 0;
 
 static unsigned long bitHash(int bits, unsigned long key)
@@ -21,14 +20,15 @@ static unsigned long bitHash(int bits, unsigned long key)
 	return (unsigned long)(mask & key);
 }
 
-static const int SST_BYTES = 4096 - sizeof(SST) - 5; //just shy of 4kb per sst including metadata
-static const int MAX_ENTRIES = SST_BYTES / sizeof(kv_pair);
+//static const int SST_BYTES = 4096 - sizeof(SST) - 30; /for reference of values
+//static const int MAX_ENTRIES = SST_BYTES / sizeof(kv_pair);
+
 
 class Database {
     std::string database_name;
 	
 	//stuff for the buffer
-	const int min_buffer_depth = 3;
+	const int min_buffer_depth = 3; 
 	const int max_buff_depth = 5;
 	int curr_buffer_depth;
 	int curr_buffer_entries;
@@ -40,6 +40,8 @@ class Database {
     int memtable_size;
     memtab* memtable;
 	bucket_node ** buffer_directory;
+	
+	SST_directory* SST_DIR;//manages all the ssts
 	
     int num_files;
 
@@ -581,116 +583,21 @@ class Database {
             num_files = 0;
 			srand(time(NULL));
 			initializeBuffer();
+			SST_DIR = new SST_directory();
 		}
 
-        int get(int key, int* result) {
-            memtab* curr = memtable;
-            int success = false;
-            int curr_ind = 0;
-            if (curr_ind == 0) {
-
-                success = curr->get(key, result);
-                if (success == true) {
-                    return success;
-                }
-
-                curr_ind++;
-            }
-
-            
-
-            for (int i = 0; i < num_files; i++) {
-                int num_pairs;
-                kv_pair* pairs = load_sst_as_list(get_file_by_ind(i).c_str(), &num_pairs);
-
-                
-                if (STAGE == 1) {
-                    kv_pair* sst_result;
-                    bool found = binary_search(pairs, num_pairs, key, &sst_result)  ;
-                    if (found == true) {
-                        *result = sst_result->value;
-                        //FREES THE LOADED PAIRLIST
-                        free(pairs);
-                        return found;
-                    }
-
-                } else if (STAGE == 2) {
-                    btree* tree = new btree();
-                    //tree->insert_all(pairs, num_pairs);
-                    tree->build(pairs, num_pairs);
-
-                    bool success = tree->get(key, result);
-
-                    if (success == true) {
-                        free(pairs);
-                        return success;
-                    }
-
-                    tree->clear_all();    
-
-                } else {
-
-                }
-
-                //FREES THE LOADED PAIRLIST
-                free(pairs);
-            }
-
-            return false;
+        int get(int key, bool* found) 
+		{
+			bool in_db = false;
+			unsigned long hashkey = SST_DIR->get(key, &in_db, &found);
+			if(!found)
+			{
+				std::cerr << "WARNING: key not found in database, Key: " << key << std::endl;
+				return 0;
+			}
+			
         }
-		void TESTINGBUFFER()
-		{//stress test buffer
-			/*IMPORTANT NOTE****** im not sure if its my system, but if I run at 10 pages for 10 trials,
-			I will get a segfault ~10% of the time.
-			However if I run 1000 pages 10 times, I will still get a 10% segfault rate.
-			Unsure if its instability with using a mirror compiler
-			*/
-			srand(time(NULL));
-			unsigned int test_key = 0;
-			for(int i = 0; i < 300; i++)
-			{
-				SST* tab0 = new SST();
-				std::cout<< "Created table :" << tab0->key << std::endl;
-				tab0->data = (kv_pair*)(malloc(SST_BYTES * sizeof(kv_pair)));
-				for(int j = 0; j < 10; j++)
-				{
-					tab0->data[j].key = i*100+j;
-					tab0->data[j].value = i*100+j;
-				}
-				std::cout << "----------------------INSERTING: " << i << "----------------------" << std::endl;		
-				insertIntoBuffer(tab0);
-				free(tab0->data);
-				
-				if(i == 3)
-				{
-					test_key = tab0->key;
-					
-				}
-				
-				if(i%5 == 0 && i >= 3)
-					getSST(test_key);
-				delete(tab0);
-				
-				
-			}
-			
-			std::cout << "Finished insertions" << std::endl;
-
-			SST* getResult =  getSST(test_key);
-			
-			if(!getResult)
-			{
-				std::cout << "test_key SST was evicted" << std::endl;
-				return;
-			}
-			std::cout << "Testing to retrieve table: " << getResult->key << std::endl;
-			for(int i = 0; i < 10; i++)
-			{
-				std::cout << getResult->data[i].value << std::endl;
-			}
-			
-			
-		}
+		
         int put(int key, int val) {
             int success = memtable->insert(key, val);
             
@@ -926,17 +833,56 @@ class Database {
             delete memtable;
         }
 		
-		/* void printBuffer()
-		{
-			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
-			{	
-				bucket_node* curr = buffer_directory[i];
-				while(curr && curr->table)
+		void TESTINGBUFFER()
+		{//stress test buffer
+			/*IMPORTANT NOTE****** im not sure if its my system, but if I run at 10 pages for 10 trials,
+			I will get a segfault ~10% of the time.
+			However if I run 1000 pages 10 times, I will still get a 10% segfault rate.
+			Unsure if its instability with using a mirror compiler
+			*/
+			srand(time(NULL));
+			unsigned int test_key = 0;
+			for(int i = 0; i < 300; i++)
+			{
+				SST* tab0 = new SST();
+				std::cout<< "Created table :" << tab0->key << std::endl;
+				tab0->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
+				for(int j = 0; j < 10; j++)
 				{
-					curr->sst->printInorder();
-					curr = curr->next;
+					tab0->data[j].key = i*100+j;
+					tab0->data[j].value = i*100+j;
 				}
+				std::cout << "----------------------INSERTING: " << i << "----------------------" << std::endl;		
+				insertIntoBuffer(tab0);
+				free(tab0->data);
+				
+				if(i == 3)
+				{
+					test_key = tab0->key;
+					
+				}
+				
+				if(i%5 == 0 && i >= 3)
+					getSST(test_key);
+				delete(tab0);
+				
+				
 			}
-		} */
+			
+			std::cout << "Finished insertions" << std::endl;
+
+			SST* getResult =  getSST(test_key);
+			
+			if(!getResult)
+			{
+				std::cout << "test_key SST was evicted" << std::endl;
+				return;
+			}
+			std::cout << "Testing to retrieve table: " << getResult->key << std::endl;
+			for(int i = 0; i < 10; i++)
+			{
+				std::cout << getResult->data[i].value << std::endl;
+			}
+		}
 };
 
