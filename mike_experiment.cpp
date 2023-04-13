@@ -23,7 +23,7 @@ int main()
 		std::cout << i << " : " << std::chrono::duration_cast<std::chrono::duration<double> >(finish - start).count() << std::endl;
 	} */
 	
-	db->TESTINGBUFFER();
+	db->TESTINGBUFFER(0, 1000, 5);
 	std::cout << "----------------------testing done------------------------" << std::endl;
 
 	

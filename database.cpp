@@ -30,7 +30,7 @@ class Database {
 	//stuff for the buffer
 	int search_style;
 	const int min_buffer_depth = 2; 
-	const int max_buff_depth = 5;
+	int max_buff_depth = 5;
 	int curr_buffer_depth;
 	int curr_buffer_entries;
 	int evict_policy; //NOTE TO SELF######: assign policies to ints. (0 is lru, 1 is clock, etc)
@@ -114,6 +114,7 @@ class Database {
 			{
 				lruUpdate(curr_head);
 				node_dll* a = lru_head;//show LRU queue for debug
+				std::cout << "LRU Queue: " << std::endl;
 				while(a)
 				{
 					std::cout << a->target->sst->key << "|";
@@ -730,11 +731,14 @@ class Database {
             delete memtable;
         }
 		
-		void TESTINGBUFFER()
+		void TESTINGBUFFER(int eviction, int iterations, int maxdepth)
 		{//stress test buffer
 			srand(time(NULL));
+			evict_policy = eviction;
 			unsigned int test_key = 0;
-			for(int i = 0; i < 300; i++)
+			if(maxdepth>2)
+				max_buff_depth = maxdepth;
+			for(int i = 0; i < iterations; i++)
 			{
 				SST* tab0 = new SST();
 				std::cout<< "Created table :" << tab0->key << std::endl;
@@ -761,7 +765,7 @@ class Database {
 				
 			}
 			
-			std::cout << "Finished insertions" << std::endl;
+			std::cout << "Finished " << iterations << " insertions" << std::endl;
 
 			SST* getResult =  getSST(test_key);
 			
