@@ -33,36 +33,29 @@ class btree {
 		int entries;
 
         bool search_step(BTNode* node, int key, BTNode** node_found, int* child_i){
-            std::cout << "searchx: " << std::endl;
 			for (int i = 0; i < node->num_keys; i++) {
-                std::cout << "key: " << node->keys[i];
-                std::cout << "target: " << key << std::endl;
                 if (key == node->keys[i]){
                     *node_found = node;
                     *child_i = i;
                     return true;
                 } else if (key < node->keys[i]){
-                    std::cout << "yess: " << std::endl;
                     if (node->is_leaf == true){
-                        std::cout << "WHAT: " << std::endl;
-                        std::cout << "children: " << node->num_children << std::endl;
                         *node_found = node;
                         *child_i = i;
                         return false;
                     }
                     return search_step( node->child[i] , key, node_found, child_i);
                 } else if (i == node->num_keys - 1){
-                    std::cout << "check rightmost: " << std::endl;
                     if (node->is_leaf == true){
-                        std::cout << "fail1: " << std::endl;
+                        //std::cout << "fail1: " << std::endl;
                         *node_found = node;
                         *child_i = i + 1;
                         return false;
                     }
                     if (node->child[i + 1] == nullptr) {
-                        std::cout << "fail2: " << std::endl;
+                        //std::cout << "fail2: " << std::endl;
                     } else if (node->num_children > i + 1) {
-                        std::cout << "fail3: " << std::endl;
+                        //std::cout << "fail3: " << std::endl;
                         return search_step( node->child[i + 1] , key, node_found, child_i);
                     }
                 }
@@ -77,6 +70,7 @@ class btree {
             delete node;
         }
         
+        //find the lowest over or equal
         void find_lowest_oe(BTNode* node, int min, kv_pair** min_pair, bool* found_valid){
             
 			for (int i = 0; i < node->num_keys; i++) {
@@ -101,6 +95,7 @@ class btree {
             }
 
         }
+        //find the highest under or equal
         void find_highest_ue(BTNode* node, int max, kv_pair** max_pair, bool* found_valid){
 
 			for (int i = node->num_keys - 1; i >= 0; i--) {
@@ -127,40 +122,6 @@ class btree {
             if (node->is_leaf == false && node->num_children > 0) {
                 return find_highest_ue(node->child[0], max, max_pair, found_valid);
             }
-        }
-	public:
-
-
-        bool scan(int min, int max, kv_pair** min_pair, kv_pair** max_pair){
-
-            bool found_valid = false;
-            find_lowest_oe(root, min, min_pair, &found_valid);
-            if (found_valid == false) {
-                std::cout << "fail1 "<< std::endl;
-                return false;
-            }
-
-            found_valid = false;
-            find_highest_ue(root, max, max_pair, &found_valid);
-            if (found_valid == false) {
-                std::cout << "fail2 "<< std::endl;
-                return false;
-            }
-            
-            std::cout << "Between: " << min << " and " << max << std::endl;
-
-            return true;
-        }
-
-        bool get(int key, int* val){
-            BTNode* result_node = nullptr;
-            int index_found;
-            bool found = search_step(root, key, &result_node, &index_found);
-            if (found) {
-                kv_pair* result_pair = result_node->pairs[index_found];
-                *val = result_pair->value;
-            }
-            return found;
         }
 
         void insert_step(BTNode* node, kv_pair* pair, BTNode* new_right) {
@@ -241,39 +202,10 @@ class btree {
             }
         }
 
-        void insert(kv_pair* pair) {
-            if (this->root == nullptr) {
-                this->root = new BTNode();
-                this->root->pairs[0] = pair;
-                this->root->num_keys++;
-                return;
-            }
 
-            BTNode* node;
-            int index_found;
-            bool found = search_step(this->root, pair->key, &node, &index_found);
-
-            insert_step(node, pair, nullptr);
-        }
-        
-        btree(){
-			this->entries = 0;
-			this->root = nullptr;
-        }
-        
-
-
-        void insert_all(kv_pair* pairs, int len){
-            for (int i = 0; i < len; i++) {
-                insert(&(pairs[i]));
-            }
-        }
-
-        void clear_all(){
-            clear(root);
-        }
-
-
+        /**
+         * builds the btree from the bottom left up, then down again
+         */
         BTNode* build_step(kv_pair* pairs, int len, int depth, int height, BTNode* parent){
 
             BTNode* node = new BTNode();
@@ -335,7 +267,7 @@ class btree {
             if (depth == 0) {
                 this->root = node;
             } else if (parent == nullptr) {
-                std::cout << "building parent with len: " << len - sub_tree_size << std::endl;
+                //std::cout << "building parent with len: " << len - sub_tree_size << std::endl;
                 node->parent = build_step(pairs + sub_tree_size, len - sub_tree_size, depth - 1, height, nullptr);
                 node->parent->child[0] = node;
                 node->parent->num_children++;
@@ -350,6 +282,95 @@ class btree {
             return node;
         }
 
+	public:
+
+
+        /**
+         * scan the btree
+         *
+         * @param min the min key (inclusive)
+         * @param max the max key (inclusive)
+         * @param min_pair sets this ptr to the min pair in the array
+         * @param max_pair sets this ptr to the max pair in the array
+         * @return true if at least 1 thing is found
+         */
+        bool scan(int min, int max, kv_pair** min_pair, kv_pair** max_pair){
+
+            bool found_valid = false;
+            find_lowest_oe(root, min, min_pair, &found_valid);
+            if (found_valid == false) {
+                return false;
+            }
+
+            found_valid = false;
+            find_highest_ue(root, max, max_pair, &found_valid);
+            if (found_valid == false) {
+                return false;
+            }
+            
+            std::cout << "Between: " << min << " and " << max << std::endl;
+
+            return true;
+        }
+
+        /**
+         * get from the btree
+         *
+         * @param key key to get
+         * @param val will be set to the value
+         * @return true on success
+         */
+        bool get(int key, int* val){
+            BTNode* result_node = nullptr;
+            int index_found;
+            bool found = search_step(root, key, &result_node, &index_found);
+            if (found) {
+                kv_pair* result_pair = result_node->pairs[index_found];
+                *val = result_pair->value;
+            }
+            return found;
+        }
+
+        // void insert(kv_pair* pair) {
+        //     if (this->root == nullptr) {
+        //         this->root = new BTNode();
+        //         this->root->pairs[0] = pair;
+        //         this->root->num_keys++;
+        //         return;
+        //     }
+
+        //     BTNode* node;
+        //     int index_found;
+        //     bool found = search_step(this->root, pair->key, &node, &index_found);
+
+        //     insert_step(node, pair, nullptr);
+        // }
+
+        // void insert_all(kv_pair* pairs, int len){
+        //     for (int i = 0; i < len; i++) {
+        //         insert(&(pairs[i]));
+        //     }
+        // }
+        
+        btree(){
+			this->entries = 0;
+			this->root = nullptr;
+        }
+
+        /**
+         * free the btree from memory
+         */
+        void clear_all(){
+            clear(root);
+        }
+
+
+        /**
+         * build a btree from an array of pairs
+         *
+         * @param pairs the array to build from
+         * @param len the length of pairs
+         */
         void build(kv_pair* pairs, int len){
             int b = max_keys;
             int m = b + 1;
@@ -357,7 +378,7 @@ class btree {
 
             build_step(pairs, len, target_height, target_height, nullptr);
 
-            std::cout << "btree built successfully. " << std::endl;
+            //std::cout << "btree built successfully. " << std::endl;
         }
 };
 

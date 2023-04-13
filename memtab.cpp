@@ -239,6 +239,7 @@ class memtab
 			if(n->key < key)
 				return binTreeSearch(key, n->right);
 			
+			return nullptr;
 		}
 	public:
 		Node* root;
@@ -304,7 +305,7 @@ class memtab
 			...
 			*/
 			list_node* a = treeToBuffer(root);
-			std::cout << "flush start, total length: " << a->length << std::endl;
+			//std::cout << "flush start, total length: " << a->length << std::endl;
 
 			int buf_len = a->length;
 			kv_pair* buf = (kv_pair*)malloc(buf_len * sizeof(kv_pair));

@@ -3,16 +3,26 @@
 #include <chrono>
 
 
-int main() {
+int main( int argc, char *argv[], char *envp[] ) {
+
+    if (argc != 5) {
+        std::cout << "Params are: " << std::endl
+            << "Stage of project to test (1 and 3 are valid for this branch)," << std::endl
+            << "The number of items to put," << std::endl
+            << "Number of gets and scans to perform" << std::endl
+            << "Scan length" << std::endl;
+        return 0;
+    }
 
     Database* db = new Database();
 
-    STAGE = 1;
+    //STAGE = 3;
+    STAGE = atoi(argv[1]);
     
 	db->reset("testDB");
 	db->open("testDB");
 
-    int n = 100;
+    int n = atoi(argv[2]);
     double put_total = 0.0;
     if (true){
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
@@ -25,11 +35,13 @@ int main() {
 
 	std::cout << "Put Done." << std::endl;
 
-    int gets = 1;
+    int gets_n_scans = atoi(argv[3]);
+
+    int gets = gets_n_scans;
     double avg_get = 0.0;
     for (int i = 0; i < gets; i++) {
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-        int target = 13; //rand() % (n - 4); 
+        int target = rand() % n; 
         int result;
         db->get(target, &result);
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -38,7 +50,9 @@ int main() {
 
         avg_get += delta;
 
-	    std::cout << "Get target: " << target << " Get result: " << result << std::endl;
+        if (i == 0) {
+	        std::cout << "Get target: " << target << " Get result: " << result << std::endl;
+        }
     }
     avg_get = avg_get / gets;
 
@@ -46,16 +60,18 @@ int main() {
 	std::cout << std::endl ;
     //return 0;
 
-    int scans = 1;
-    int scan_len = 10;
+    int scans = gets_n_scans ;
+    int scan_len = atoi(argv[4]);
     double avg_scan = 0.0;
     for (int i = 0; i < scans; i++) {
 
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-        int min = 5; //rand() % (n - scan_len - 4); 
+        int min = rand() % (n - scan_len); 
         int max = min + scan_len; 
         kv_pair* result; int result_len;
-	    std::cout << "minimum: " << min << " maximum: " << max << std::endl;
+        if (i == 0) {
+	        std::cout << "minimum: " << min << " maximum: " << max << std::endl;
+        }
         db->scan(min, max, &result, &result_len);
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
@@ -75,10 +91,15 @@ int main() {
 	std::cout << "Scan Done." << std::endl;
 
 
-	std::cout << "Num entries: "<< n << std::endl;
-	std::cout << "Put Total Time: "<< put_total << "ms" << std::endl;
-	std::cout << "Get Avg Time: "<< avg_get << "ms" << std::endl;
-	std::cout << "Scan Avg Time: "<< avg_scan << "ms" << std::endl;
+	std::cout << "Num entries: "<< n << std::endl << std::endl;
+	std::cout << "Put total time: "<< put_total << "us" << std::endl;
+	std::cout << "Put entries/microsecond: "<< n / (put_total/1000000) << "e/us" << std::endl << std::endl;
+
+	std::cout << "Get avg time: "<< avg_get << "us" << std::endl;
+	std::cout << "Get avg entries/microsecond: "<< n / (avg_get/1000000) << "e/us" << std::endl << std::endl; 
+
+	std::cout << "Scan avg time: "<< avg_scan << "us" << std::endl;
+	std::cout << "Scan avg entries/microsecond: "<< n / (avg_scan/1000000) << "e/us" << std::endl << std::endl;
     
 	db->close();
 

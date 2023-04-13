@@ -13,13 +13,13 @@
 #include <climits>
 #include <limits.h>
 
-const int PAGE_LENGTH = 8;
-const int LSM_SIZE = 2;
+const int PAGE_LENGTH = 64;
+const int LSM_SIZE = 2; //DO NOT CHANGE
 const int buf_len = 0;
 
 const int TOMBSTONE = INT_MIN;
 
-struct LSM_NODE {
+struct LSM_NODE {  
     //LSM_NODE* parent;
 
     int num_files;
@@ -133,6 +133,16 @@ class lsmtree {
         }
 
     public:
+        /**
+         * sort-merge; does not modify x or y
+         *
+         * @param x newer array of pairs
+         * @param x_len x array length
+         * @param y older array of pairs
+         * @param y_len y array length
+         * @param z_len sets this to length of merged list
+         * @return ptr to merged list
+         */
         static kv_pair* merge_list(kv_pair* x, int x_len, kv_pair* y, int y_len, int* z_len){
             kv_pair* z = (kv_pair*)( malloc(sizeof(kv_pair) * (x_len + y_len)) );
             int i = 0;
@@ -167,7 +177,7 @@ class lsmtree {
                 }
                 
             }
-            std::cout << std::endl;
+            //std::cout << std::endl;
 
             return z;
         }
@@ -187,7 +197,7 @@ class lsmtree {
             int num_lines = std::count(std::istreambuf_iterator<char>(f), 
                 std::istreambuf_iterator<char>(), '\n');
 
-            std::cout << "Building sst: "<< filename << ", size " << num_lines << std::endl;
+            //std::cout << "Building sst: "<< filename << ", size " << num_lines << std::endl;
 
             kv_pair* pairs = (kv_pair*)( malloc(sizeof(kv_pair) * num_lines) );
             f.clear();
@@ -230,10 +240,16 @@ class lsmtree {
         }
 
 
-
-        //find the offset from beginning of file, and file ID with the sst number
+        /**
+         * from the page number, find the sst file ID and the offset from the beginning of the file in num pages
+         *
+         * @param page_num the page number sought
+         * @param page_origin sets this to file ID
+         * @param page_offset sets this to offset
+         * @return true on success
+         */
         bool get_page(int page_num, int* page_origin, int* page_offset) {
-            std::cout << "getting page: " << page_num << std::endl;
+           //std::cout << "getting page: " << page_num << std::endl;
             int curr = page_num;
             int offset = 0;
             while (file_bitmap[curr] == false) {
@@ -246,21 +262,20 @@ class lsmtree {
                 curr--;
             }
 
-            std::cout << "found page: " << page_num << std::endl;
+            //std::cout << "found page: " << page_num << std::endl;
             *page_origin = curr;
             *page_offset = offset;
 
             return true;
         }
-
-        bool read_sst(int page_num, kv_pair** page_data, int* data_len,  int* sst_num_pages, uint32_t* bitmap) {
-            bool success = read_meta(page_num, sst_num_pages, bitmap);
-            if (success == false) {
-                return false;
-            }
-            return read_page(page_num, page_data, data_len);
-        }
-
+        
+        /**
+         * checks a page's filter to see if it might contain the key
+         *
+         * @param page_num the page number sought
+         * @param key the key to check
+         * @return true if the key may be inside
+         */
         bool check_filter(int page_num, int key){
             int sst_num_pages;
             uint32_t bitmap;
@@ -273,6 +288,14 @@ class lsmtree {
             
         }
 
+        /**
+         * gets the bitmap + num pages of the page
+         *
+         * @param page_num the page number sought
+         * @param sst_num_pages sets as number of pages in the file
+         * @param bitmap sets as the filter bitmap
+         * @return true on success
+         */
         bool read_meta(int page_num, int* sst_num_pages, uint32_t* bitmap) {
             int page_origin; 
             int page_offset;
@@ -291,6 +314,14 @@ class lsmtree {
             return true;
         }
 
+        /**
+         * gets the data in the page
+         *
+         * @param page_num the page number sought
+         * @param page_data sets as the ptr to the data (sorted array)
+         * @param data_len sets as the array length
+         * @return true on success
+         */
         bool read_page(int page_num, kv_pair** page_data, int* data_len) {
             int page_origin; 
             int page_offset;
@@ -326,7 +357,7 @@ class lsmtree {
             int val;
             while (read_next(&f, &key, &val)){
                 if (curr_page == page_offset) {
-                    std::cout << "pair: " << key << " val: " << val << std::endl;
+                    //std::cout << "pair: " << key << " val: " << val << std::endl;
                     data[curr_lines].key = key;
                     data[curr_lines].value = val;
                     ++read_lines;
@@ -352,10 +383,15 @@ class lsmtree {
         }
 
 
-int apple = 0;
-        // ensure x > y (x is newer)
+        /**
+         * merges two ssts
+         *
+         * @param file_num_x the newer page to be merged
+         * @param file_num_y the older page to be merged
+         * @param new_len sets as the new files length
+         * @return true on success
+         */
         bool merge_file(int file_num_x, int file_num_y, int* new_len){
-            apple++;
             const int buffer_size = 4;
 
             //x is the newer SST
@@ -427,14 +463,14 @@ int apple = 0;
                 if (next_x_empty == true) {
                     bool can_read = read_next(&f_x, &next_x_key, &next_x_val);
                     if (can_read == true) {
-                        std::cout << "NEXT X: " << next_x_key << std::endl;
+                        //std::cout << "NEXT X: " << next_x_key << std::endl;
                         next_x_empty = false;
                     }
                 } 
                 if (next_y_empty == true) {
                     bool can_read = read_next(&f_y, &next_y_key, &next_y_val);
                     if (can_read == true) {
-                        std::cout << "NEXT Y: " << next_y_key << std::endl;
+                        //std::cout << "NEXT Y: " << next_y_key << std::endl;
                         next_y_empty = false;
                     }
                 }
@@ -447,11 +483,11 @@ int apple = 0;
                 } else if (next_x_empty == true) {
                     entries << next_y_key << "," << next_y_val << "\n";
                     next_y_empty = true;
-                    std::cout << "FLUSH MERGE NEXT: " << next_y_key << std::endl;
+                    //std::cout << "FLUSH MERGE NEXT: " << next_y_key << std::endl;
                 } else if (next_y_empty == true) {
                     entries << next_x_key << "," << next_x_val << "\n";
                     next_x_empty = true;
-                    std::cout << "FLUSH MERGE NEXT: " << next_x_key << std::endl;
+                    //std::cout << "FLUSH MERGE NEXT: " << next_x_key << std::endl;
                 } else if (next_x_key == next_y_key) {
                     //update or delete
                     entries << next_x_key << "," << next_x_val << "\n";
@@ -463,13 +499,13 @@ int apple = 0;
                     next_x_empty = true;
                     filter->insert(next_x_key);
 
-                    std::cout << "FLUSH MERGE NEXT: " << next_x_key << std::endl;
+                    //std::cout << "FLUSH MERGE NEXT: " << next_x_key << std::endl;
                 } else {
 				    entries << next_y_key << "," << next_y_val << "\n";
                     next_y_empty = true;
                     filter->insert(next_y_key);
 
-                    std::cout << "FLUSH MERGE NEXT: " << next_y_key << std::endl;
+                    //std::cout << "FLUSH MERGE NEXT: " << next_y_key << std::endl;
                 }
                 new_file_len++;
 
@@ -481,7 +517,7 @@ int apple = 0;
                 }
             }
             
-            std::cout << "DONE. " << std::endl;
+            //std::cout << "DONE. " << std::endl;
 
             output.clear();
             output.seekp(0);
@@ -506,21 +542,20 @@ int apple = 0;
             
             delete filter;
 
-            // if (apple == 2) {
-            //     int* a;
-            //     *a = 4;
-            // }
-
             return true;
         }
 
-        void clear_tree(){
-            //TODO
-        }
-
+        /**
+         * merges two ssts
+         *
+         * @param file_num_x the newer page to be merged
+         * @param file_num_y the older page to be merged
+         * @param new_len sets as the new files length
+         * @return true on success
+         */
         void flush_merge_step(LSM_NODE* node){
             if (node->num_files == LSM_SIZE) {
-                std::cout << "row filled" << std::endl;
+                //std::cout << "row filled" << std::endl;
                 //only supports LSM_SIZE == 2
                 int file_num = node->page_origin[0];
                 int new_len = 0;
@@ -538,7 +573,14 @@ int apple = 0;
 
             return;
         }
-        //flush from memtab
+
+        /**
+         * for flushing a page from memtab
+         *
+         * @param list the array of pairs to save
+         * @param len length of list
+         * @return true on success
+         */
         bool flush(kv_pair* list, int len){
             if (this->root == nullptr) {
                 LSM_NODE* node = new LSM_NODE();
@@ -548,13 +590,18 @@ int apple = 0;
             int file_num = num_files;
             bool result = write(get_next_file_name().c_str(), list, len);
             
-            std::cout << "flushing" << std::endl;
+            //std::cout << "flushing" << std::endl;
             this->root->add_file(file_num, 1);
             flush_merge_step(this->root);
 
             return true;
         }
 
+        /**
+         * for saving tree structure metadata
+         *
+         * @return true on success
+         */
         bool save_tree(){
             std::ofstream output(get_lsmt_file_name(), std::ofstream::trunc);
 
@@ -589,10 +636,20 @@ int apple = 0;
             return true;
         }
 
+        /**
+         * for deleting the tree's saved metadata
+         *
+         * @return true on success
+         */
         bool del_tree(){
             return remove((db_name + (std::string)(".lsmt")).c_str());
         }
 
+        /**
+         * for loading the tree's metadata
+         *
+         * @return true on success
+         */
         bool load_tree(){
             
             std::ifstream f(get_lsmt_file_name());

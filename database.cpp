@@ -399,18 +399,7 @@ class Database {
 
             return true;
         }
-
         
-        btree* make_btree(kv_pair* array, int len){
-            btree* t = new btree();
-
-            for (int i = 0; i < len; i++)
-            {
-                t->insert(&array[i]);
-            }
-
-            return t;
-        }
 
         void cleanup_sst_btree(btree* tree, kv_pair* array){
             tree->clear_all();
@@ -431,7 +420,7 @@ class Database {
             int num_lines = std::count(std::istreambuf_iterator<char>(f), 
                 std::istreambuf_iterator<char>(), '\n');
 
-            std::cout << "Building sst: "<< filename << ", size " << num_lines << std::endl;
+            //std::cout << "Building sst: "<< filename << ", size " << num_lines << std::endl;
 
             kv_pair* pairs = (kv_pair*)( malloc(sizeof(kv_pair) * num_lines) );
             f.clear();
@@ -480,7 +469,7 @@ class Database {
 
             
 
-            for (int i = 0; i < get_num_files(); i++) {
+            for (int i = get_num_files() - 1; i >= 0; i--) {
                 int num_pairs = 0;
                 kv_pair* pairs = nullptr;
                 
@@ -510,9 +499,9 @@ class Database {
                     //tree->insert_all(pairs, num_pairs);
                     tree->build(pairs, num_pairs);
 
-                    for (int i = 0; i< num_pairs; i++){
-				        std::cout<< "2key: " << pairs[i].key << std::endl;
-                    }
+                    // for (int i = 0; i< num_pairs; i++){
+				    //     std::cout<< "2key: " << pairs[i].key << std::endl;
+                    // }
 
                     bool success = tree->get(key, result);
 
@@ -602,7 +591,7 @@ class Database {
         void scan(int min, int max, kv_pair** result, int* result_length) {
             memtab* buf = memtable;
 
-            std::cout << "Scan memtab: " << std::endl;
+            //std::cout << "Scan memtab: " << std::endl;
 
             kv_pair* result_temp = nullptr;
             int result_temp_len = 0;
@@ -624,8 +613,8 @@ class Database {
 
             }
 
-            std::cout << "Scan sst begin: " << std::endl;
-            for (int i = 0; i < get_num_files(); i++) {
+            //std::cout << "Scan sst begin: " << std::endl;
+            for (int i = get_num_files() - 1; i >= 0; i--) {
                 int num_pairs = 0;
                 kv_pair* pairs = nullptr;
 

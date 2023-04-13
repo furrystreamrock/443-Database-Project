@@ -28,13 +28,30 @@ class bloomfilter {
         }
 
     public:
+        /**
+         * gets the bloom filter's bitmap
+         *
+         * @return bitmap
+         */
         uint32_t get_bitmap(){
             return this->bitmap;
         }
+
+        /**
+         * sets the bloom filter's bitmap
+         *
+         * @param bitmap new bitmap
+         */
         void set_bitmap(uint32_t bitmap){
             this->bitmap = bitmap;
         }
     
+        /**
+         * check to see if a key may be in the page associated with the filter
+         *
+         * @param key the key to check for possibility of existence
+         * @return true if possible
+         */
         bool check(int key){
             uint32_t bits = hash(key);
             if (bits & this->bitmap != bits) {
@@ -46,6 +63,11 @@ class bloomfilter {
 
         }
 
+        /**
+         * insert a new key in the filter
+         *
+         * @param key the key to insert and flip bits for
+         */
         void insert(int key){
             this->bitmap = this->bitmap | hash(key);
             this->count++;
