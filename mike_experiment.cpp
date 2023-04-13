@@ -30,7 +30,7 @@ int main()
 	
 	
 	SST_directory* sst_dir = new SST_directory();
-	sst_dir->testInsert();
+	//sst_dir->testInsert(); //test tje insert functionality of page directory
 	
 	return 0;
     /* int result;
