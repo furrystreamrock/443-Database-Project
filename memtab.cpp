@@ -5,7 +5,7 @@
 #include <string>
 #include <random>
 #include <cstring>
-#include "objs.cpp"
+#include "objs.h"
 /*
 struct kv_pair
 {//kv pair
@@ -25,7 +25,12 @@ struct list_node
 	list_node(int key, int value) : key(key), value(value), next(nullptr), length(1){}
 };
 */
-
+static void print_sst(SST* sst)
+{
+	std::cout << "-----------------------------------SST print start : " << sst->key << "  ----------------------------------------------" << std::endl;
+	for(int i = 0; i < sst->entries; i++)
+		std::cout << "Key: " << sst->data[i].key << " Value: " << sst->data[i].value <<  std::endl; 
+}
 struct Node 
 {//binary tree node
 	int key;
@@ -424,8 +429,254 @@ static memtab* build_from_file(const char* filename)
 		table->insert(stoi(key), stoi(val));
 	}
 	return table;
+	
+};
+static const int SST_BYTES = 4096 - sizeof(SST) - 30; //just shy of 4kb per sst including metadata
+static const int MAX_ENTRIES = 2* (SST_BYTES/2) / sizeof(kv_pair);//make this number always even for convenience. 
+
+struct SST_node
+{
+	SST* sst;
+	int min;
+	int max;
+	unsigned long sst_key;
+	int split;
+	SST_node* left;
+	SST_node* right;
+	SST_node(): sst(nullptr), left(nullptr), right(nullptr), split(0), sst_key(0), min(0), max(0) {}	
 };
 
+
+class SST_directory
+{
+	SST_node* root;
+	private:
+		void sstInsert(SST* sst, kv_pair* kv)
+		{//use binary search, insert the kv into the sst at the appropriate index in the SST's data field.
+			int top = sst->entries;//one end of the sst.
+			int bottom = 0;
+			while(top-bottom > 1)//converge the range in binary search
+			{
+				int mid = (top + bottom)/2;
+				if(sst->data[mid].key > kv->key)
+				{
+					top = mid;
+				}
+				else
+				{
+					bottom = mid;
+				}
+			}//top and bottom now straddle the correct key's index, if neither are the key themselves.
+		
+			if(sst->data[top].key == kv->key)//can treat this as update if key already in SST, although this is unintended, print warning
+			{
+				std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
+				sst->data[top].value = kv->value;
+				return;
+			}
+			if(sst->data[bottom].key == kv->key)
+			{
+				std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
+				sst->data[bottom].value = kv->value;
+				return;
+			}
+			
+			//make the update to the sst.
+			if(sst->entries > MAX_ENTRIES)
+			{
+				std::cerr << "Error, attempting to insert into full SST, insertion incomplete" << std::endl;
+				return;
+			}
+			
+			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
+			std::memcpy(temp, sst->data, MAX_ENTRIES*sizeof(kv_pair));
+			std::memcpy(&(sst->data[top+1]), &(temp[top]), MAX_ENTRIES - top - (int)(sizeof(kv_pair)));
+			sst->data[top].key = kv->key;
+			sst->data[top].value = kv->value;
+			free(temp);
+			sst->entries++;
+			return;
+		}
+	
+	public: 
+		unsigned long get(int key, bool* loaded)
+		{//return the sst key for the given key. loaded is set to true when the target SST is in the buffer, false otherwise
+			SST_node* curr = root;
+			*loaded  = false;
+			while(true)
+			{
+				//leaf node
+				if(!curr->left)
+				{
+					if(key >= curr->min && key <= curr->max)
+					{
+						if(curr->sst)
+							*loaded = true;
+						return curr->sst_key;
+					}
+					else
+					{
+						std::cerr << "WARNING: tried to get key not in Database!" << std::endl;
+						return 0;//Indicates that we could not find the sst. (chance of key being 0 is like .0000001% so probably safe? kinda bad)
+					}
+				}
+				else
+				{
+					if(key >= curr->split)
+						curr = curr->right;
+					else
+						curr = curr->left;
+				}
+			}
+			return 0;//for the compiler
+		}
+		
+		
+		SST* insert(kv_pair* kv, SST_node* n)
+		{//will return nullptr if an existing SST was updated and no new tables made.
+		//if the insertion caused a split, will return an SST of the *NEWLY created table that DOESNT contain the 
+		//just inserted kv_pair. the existing SST will contain it, and the new one will have to be handled.
+			SST_node* curr = root;
+			
+			if(!root)//if this is the first ever insert, make a root sst_node
+			{
+				root = new SST_node();
+				root->sst = new SST();
+				root->sst_key = root->sst->key;
+				root->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
+				root->sst->data[root->sst->entries].key = kv->key;
+				root->sst->data[root->sst->entries].value = kv->value;
+				root->sst->entries++;
+				root->sst->minkey = kv->value;
+				root->sst->maxkey = kv->value;
+				return root->sst;
+			}
+			
+			if(!n->sst)//internal node
+			{
+				if(!n->left)//not internal node... screwed up
+				{
+					std::cerr << "CRITICAL ERROR: trying to get/insert into non-loaded SST" << std::endl;
+					return nullptr;
+				}
+				if(kv->key >= n->split)//internal nodes are gauranteed to have both left and right child 
+					return insert(kv, n->right); 
+				else
+					return insert(kv, n->left);
+			}
+			
+			//leaf node, we insert into this SST
+			if(n->sst->entries < MAX_ENTRIES)
+			{
+				int i = n->sst->entries;
+				n->sst->data[i].key = kv->key;
+				n->sst->data[i].value = kv->value;
+				n->sst->entries++;
+				//update range of table if needed
+				if(kv->key > n->sst->maxkey)
+					n->sst->maxkey = kv->key;
+				if(kv->key < n->sst->minkey)
+					n->sst->minkey = kv->key;
+				return nullptr;
+			}
+			//full, require to split the tree
+			int mid_key = n->sst->data[MAX_ENTRIES/2].key;
+			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
+			std::memcpy(temp, n->sst->data, MAX_ENTRIES*sizeof(kv_pair));
+			
+			//this will now become an internal node:
+			n->split = mid_key;
+			n->left = new SST_node(); 
+			n->right = new SST_node();
+			
+			if(kv->key >= mid_key)//ends up on right side of split
+			{
+				n->right->sst = n->sst;
+				n->right->sst->minkey = mid_key;
+				std::memcpy(n->right->sst->data, temp + (MAX_ENTRIES/2)*sizeof(kv_pair), (MAX_ENTRIES/2)*sizeof(kv_pair));
+				n->right->sst->entries = MAX_ENTRIES/2;
+				sstInsert(n->right->sst, kv);
+				
+				
+				n->left = new SST_node();
+				n->left->sst = new SST();
+				n->left->sst_key = n->left->sst->key;
+				n->left->sst->maxkey = mid_key - 1;
+				n->left->sst->minkey = temp[0].key;
+				n->left->sst->entries = MAX_ENTRIES/2;
+				n->left->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
+				std::memcpy(n->left->sst->data, temp, (MAX_ENTRIES/2)*sizeof(kv_pair));
+				
+				
+			}
+			else
+			{
+				n->left->sst = n->sst;
+				n->left->sst->maxkey = mid_key-1;
+				n->left->sst->entries = MAX_ENTRIES/2;
+				std::memcpy(n->left->sst->data, temp , (MAX_ENTRIES/2)*sizeof(kv_pair));
+				sstInsert(n->left->sst, kv);
+				
+				n->right = new SST_node();
+				n->right->sst = new SST();
+				n->right->sst_key = n->right->sst->key;
+				n->right->sst->minkey = mid_key;
+				n->right->sst->maxkey = temp[MAX_ENTRIES-1].key;
+				n->right->sst->entries = MAX_ENTRIES/2;
+				n->right->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
+				std::memcpy(n->right->sst->data, temp + (MAX_ENTRIES/2)*sizeof(kv_pair), (MAX_ENTRIES/2)*sizeof(kv_pair));
+			}
+			free(temp);
+			n->sst = nullptr;
+			
+			if(kv->key >= mid_key)
+				return n->left->sst;
+			else
+				return n->right->sst;
+	}
+	
+	void testInsert()
+	{
+
+		SST* test = new SST();
+		test->data = (kv_pair*)(malloc(200 * sizeof(kv_pair)));
+		
+		kv_pair* kv1 = new kv_pair(0, 0);
+		kv_pair* kv2 = new kv_pair(1 ,1);
+		kv_pair* kv3 = new kv_pair(2, 2);
+		
+
+		
+		sstInsert(test, kv1);
+		print_sst(test);
+		
+		sstInsert(test, kv2);
+		print_sst(test);
+		
+		sstInsert(test, kv3);
+		print_sst(test);
+
+		for(int i = 3; i < 100; i++)
+		{
+			if(i != 50)
+			{
+				kv_pair* k;
+				k->key = i;
+				k->value = i;
+				sstInsert(test, k);
+			}
+		}
+		
+		kv_pair* k4 = new kv_pair(50, 50);
+		kv_pair* k5 = new kv_pair(99, 1000);
+
+		sstInsert(test, k4);
+		print_sst(test);
+		
+		sstInsert(test, k5);
+		print_sst(test);	
+	}
+};
 
 //for testing the tree
 /*
