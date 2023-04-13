@@ -6,13 +6,13 @@
 
 int main() 
 {
-	Database* db = new Database(3);
+	Database* db = new Database(MAX_ENTRIES);
 
 	db->open("bufferTestingDB");
 
 	std::cout << "buffer testing:" << std::endl;
 
-	//testing a thousand page insertions, at varying max buffer depth:
+	/* //testing a thousand page insertions, at varying max buffer depth:
 	int depths[] = {2, 3, 4, 5, 6};
 	for(int i = 0; i < 5; i++)
 	{
@@ -21,15 +21,17 @@ int main()
 		auto finish = std::chrono::steady_clock::now();
 		
 		std::cout << i << " : " << std::chrono::duration_cast<std::chrono::duration<double> >(finish - start).count() << std::endl;
-	}
+	} */
 	
+	db->TESTINGBUFFER();
 	std::cout << "----------------------testing done------------------------" << std::endl;
-    db->close();
+
 	
 	
 	
 	SST_directory* sst_dir = new SST_directory();
 	sst_dir->testInsert();
+	
 	return 0;
     /* int result;
     db->get(2, &result);

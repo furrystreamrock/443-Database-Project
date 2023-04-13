@@ -29,11 +29,11 @@ class Database {
 	
 	//stuff for the buffer
 	int search_style;
-	int min_buffer_depth = 2; 
-	int max_buff_depth = 5;
+	const int min_buffer_depth = 2; 
+	const int max_buff_depth = 5;
 	int curr_buffer_depth;
 	int curr_buffer_entries;
-	int evict_policy; //(0 is lru, 1 is clock, etc)
+	int evict_policy; //NOTE TO SELF######: assign policies to ints. (0 is lru, 1 is clock, etc)
 	node_dll* lru_head;
 	node_dll* lru_tail;
 	node_dll* clock_pointer;
@@ -93,20 +93,20 @@ class Database {
 			unsigned long hash = bitHash(curr_buffer_depth, sst->key);
 			bucket_node* curr_head = buffer_directory[hash];
 			//std::cout << curr_buffer_depth << std::endl;
-			//std::cout << "Buffer pages: " << curr_buffer_entries << std::endl;
-			//std::cout << "Inserting SST: " << sst->key << " at hash: "<<  int(hash) << std::endl;
+			std::cout << "Buffer pages: " << curr_buffer_entries << std::endl;
+			std::cout << "Inserting SST: " << sst->key << " at hash: "<<  int(hash) << std::endl;
 			if(!curr_head)
 				return;
 			while(curr_head->next)
 				curr_head = curr_head->next;
-			
+			std::cout << "Checkpoint 1" << std::endl;
 			curr_head->sst = (SST*)malloc(sizeof(SST));
 			std::memcpy(curr_head->sst, sst, sizeof(SST));
 			
-			curr_head->sst->data = (kv_pair*)(malloc(SST_BYTES*sizeof(kv_pair)));
-			//std::cout << sst->data[0].key << std::endl;
-			std::memcpy(curr_head->sst->data, sst->data, SST_BYTES*sizeof(kv_pair));
+			curr_head->sst->data = (kv_pair*)(malloc(MAX_ENTRIES*sizeof(kv_pair)));
+			std::memcpy(curr_head->sst->data, sst->data, MAX_ENTRIES*sizeof(kv_pair));
 			
+			std::cout << "Checkpoint 2" << std::endl;
 			curr_head->next = new bucket_node();
 			curr_head->next->prev = curr_head;
 			
@@ -146,6 +146,7 @@ class Database {
 					clock_pointer->prev = n;
 				}
 			}
+			std::cout << "Checkpoint 3" << std::endl;
 			printBuckets();
 			
 		}	
@@ -180,7 +181,7 @@ class Database {
 			cleanBucket(lru_tail->target);
 			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
-			//std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
+			std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
 /* 			if(lru_tail->target->prev && lru_tail->target->prev->sst)
 				std::cout << "Prev: " << lru_tail->target->prev->sst->key << std::endl;
 			if(lru_tail->target->next && lru_tail->target->next->sst)
@@ -198,9 +199,9 @@ class Database {
 			
 			if(target->lru_node)
 			{
-				//std::cout << target->sst->key << std::endl;
+				std::cout << target->sst->key << std::endl;
 				node_dll* n = (node_dll*) (target->lru_node);
-				//std::cout << n->target->sst->key << std::endl;
+				std::cout << n->target->sst->key << std::endl;
 				if(n->prev)
 					std::cout << n->prev->target->sst->key << std::endl;
 				if(n->next)
@@ -232,7 +233,7 @@ class Database {
 		}
 		void clockEvict()
 		{
-			//std::cout << "Clock Evicting " << clock_pointer->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, clock_pointer->target->sst->key) << std::endl;
+			std::cout << "Clock Evicting " << clock_pointer->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, clock_pointer->target->sst->key) << std::endl;
 			if(!clock_pointer->target->prev)//first in the bucket.
 			{
 				buffer_directory[bitHash(curr_buffer_depth, clock_pointer->target->sst->key)] = clock_pointer->target->next;
@@ -277,7 +278,7 @@ class Database {
 		
 		void doubleBufferSize()
 		{
-			//std::cout << "Doubling buffer capacity, new depth: " << curr_buffer_depth + 1 << std::endl;
+			std::cout << "Doubling buffer capacity, new depth: " << curr_buffer_depth + 1 << std::endl;
 			if(curr_buffer_depth >= max_buff_depth)
 			{
 				std::cerr << "Warning, can't double buffer size" << std::endl;
@@ -317,7 +318,7 @@ class Database {
 		
 		void halveBufferSize()
 		{
-			//std::cout << "Halving buffer capacity, new depth: " << curr_buffer_depth - 1 << std::endl;
+			std::cout << "Halving buffer capacity, new depth: " << curr_buffer_depth - 1 << std::endl;
 			if(curr_buffer_depth <= min_buffer_depth)
 			{
 				std::cerr << "Warning, can't double buffer size" << std::endl;
@@ -429,7 +430,7 @@ class Database {
 			return nullptr;
 		}
 		
-		
+
 //----------------------------------buffer methods end-------------------------------------------------	
 		SST* fetch(unsigned long key, int entries)
 		{//fetch the SST for from file, and put it into the buffer
@@ -640,7 +641,7 @@ class Database {
             
 
         void scan() 
-		{
+		{//TODO REimplment this using page directory!!
             
         }
             
@@ -731,26 +732,34 @@ class Database {
             delete memtable;
         }
 		
-		void TESTINGBUFFER(int eviction, int max_depth, int iter=1000)
-		{//testing buffer in mike_experiment.cpp using this 
-		
-			evict_policy = eviction;
-			max_buff_depth = max_depth;
+		void TESTINGBUFFER()
+		{//stress test buffer
 			srand(time(NULL));
 			unsigned int test_key = 0;
-			for(int i = 0; i < iter; i++)
+			for(int i = 0; i < 300; i++)
 			{
 				SST* tab0 = new SST();
-				//std::cout<< "Created table :" << tab0->key << std::endl;
+				std::cout<< "Created table :" << tab0->key << std::endl;
 				tab0->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				for(int j = 0; j < 10; j++)
 				{
 					tab0->data[j].key = i*100+j;
 					tab0->data[j].value = i*100+j;
 				}
-				//std::cout << "----------------------INSERTING: " << i << "----------------------" << std::endl;		
+				std::cout << "----------------------INSERTING: " << i << "----------------------" << std::endl;		
 				insertIntoBuffer(tab0);
-				free(tab0->data);		
+				free(tab0->data);
+				
+				if(i == 3)
+				{
+					test_key = tab0->key;
+					
+				}
+				
+				if(i%5 == 0 && i >= 3)
+					getSST(test_key);
+				delete(tab0);
+				
 				
 			}
 			
