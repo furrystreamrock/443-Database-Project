@@ -14,7 +14,8 @@ class bloomfilter {
     private:
 
         uint32_t hash_x(int hash_num, int input){
-            return input % (2 + hash_num);
+            int val = 2 + hash_num;
+            return input % ((val) + (val * (val + 1) / 2));
         }
 
         uint32_t hash(int input){
@@ -29,6 +30,9 @@ class bloomfilter {
     public:
         uint32_t get_bitmap(){
             return this->bitmap;
+        }
+        void set_bitmap(uint32_t bitmap){
+            this->bitmap = bitmap;
         }
     
         bool check(int key){

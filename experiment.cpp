@@ -7,7 +7,7 @@ int main() {
 
     Database* db = new Database(4);
 
-    STAGE = 1;
+    STAGE = 3;
     
 	db->reset("testDB");
 	db->open("testDB");
@@ -17,7 +17,7 @@ int main() {
     if (true){
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
         for (int i = 0; i < n; i++) {
-            db->put(i, -i);
+            db->put(n - i, -i);
         }
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
         put_total = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
@@ -25,7 +25,7 @@ int main() {
 
 	std::cout << "Put Done." << std::endl;
 
-    int gets = 5;
+    int gets = 1;
     double avg_get = 0.0;
     for (int i = 0; i < gets; i++) {
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
@@ -46,7 +46,7 @@ int main() {
 	std::cout << std::endl ;
     //return 0;
 
-    int scans = 5;
+    int scans = 1;
     int scan_len = 10;
     double avg_scan = 0.0;
     for (int i = 0; i < scans; i++) {
@@ -64,6 +64,7 @@ int main() {
         avg_scan += delta;
 
         if (i == 0) {
+	        std::cout << "Scan result: ";
             for (int j = 0; j < result_len; j++) {
 	            std::cout << result[j].key << ";";
             }

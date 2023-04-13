@@ -242,7 +242,7 @@ class memtab
 		}
 	public:
 		Node* root;
-		unsigned short key;//used for hashing 
+		unsigned long key;//used for hashing 
 		bool isFull()
 		{
 			//std::cout << entries << "/" << memtable_size << std::endl;
@@ -293,7 +293,7 @@ class memtab
 			std::cout << std::endl;
 		}
 		
-		void inOrderFlush(const char* filename)
+		void inOrderFlush(const char* filename, lsmtree* db_lsmt)
 		{
 			/*
 			Flush the contents of the tree to a file.
@@ -305,33 +305,36 @@ class memtab
 			*/
 			list_node* a = treeToBuffer(root);
 			std::cout << "flush start, total length: " << a->length << std::endl;
-			
-			int buf_len = a->length*2;
-			int* buf = (int*)malloc(buf_len * sizeof(int));
+
+			int buf_len = a->length;
+			kv_pair* buf = (kv_pair*)malloc(buf_len * sizeof(kv_pair));
 			int count = 0;
 			while(a)//populate the buffer with data
 			{
-				buf[count*2] = a->key;
-				buf[count*2+1] = a->value;
-				std::string bleh = "false";
-				//if (a->next)
-				//	bleh = "true";
-				//std::cout << a->key << "     " << bleh << std::endl;//use for testing
+				buf[count].key = a->key;
+				buf[count].value = a->value;
+
 				a = a->next;
 				count++;
 			}
-	
-			std::stringstream entries;
-			for(int i = 0; i < count; i++)
-			{
-				entries << buf[i*2] << "," << buf[i*2+1] << "\n";
+
+			//write to sst
+			if (STAGE == 3 && db_lsmt != nullptr) {
+				db_lsmt->flush(buf, buf_len);
+				return;
+			} else {
+				std::stringstream entries;
+				for(int i = 0; i < count; i++)
+				{
+					entries << buf[i].key << "," << buf[i].value << "\n";
+				}
+				std::string file_out = entries.str();
+				std::ofstream output((std::string)filename);
+				output << file_out;
+				output.close();
+						
+				return;
 			}
-			std::string file_out = entries.str();
-			std::ofstream output((std::string)filename);
-			output << file_out;
-			output.close();
-					
-			return;
 		}
 		
 		bool get(int key, int* result)
