@@ -93,13 +93,13 @@ int main( int argc, char *argv[], char *envp[] ) {
 
 	std::cout << "Num entries: "<< n << std::endl << std::endl;
 	std::cout << "Put total time: "<< put_total << "us" << std::endl;
-	std::cout << "Put entries/microsecond: "<< n / (put_total/1000000) << "e/us" << std::endl << std::endl;
+	std::cout << "Put entries/microsecond: "<< n / (put_total/1000000) << "e/s" << std::endl << std::endl;
 
 	std::cout << "Get avg time: "<< avg_get << "us" << std::endl;
-	std::cout << "Get avg entries/microsecond: "<< n / (avg_get/1000000) << "e/us" << std::endl << std::endl; 
+	std::cout << "Get avg entries/microsecond: "<< n / (avg_get/1000000) << "e/s" << std::endl << std::endl; 
 
 	std::cout << "Scan avg time: "<< avg_scan << "us" << std::endl;
-	std::cout << "Scan avg entries/microsecond: "<< n / (avg_scan/1000000) << "e/us" << std::endl << std::endl;
+	std::cout << "Scan avg entries/microsecond: "<< n / (avg_scan/1000000) << "e/s" << std::endl << std::endl;
     
 	db->close();
 

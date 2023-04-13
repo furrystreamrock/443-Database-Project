@@ -599,16 +599,18 @@ class Database {
             if (buf->getEntries() > 0) {
                 list_node* sub_result = nullptr;
                 //TODO: scan 'curr' and add stuff to linked list
-                buf->scan(min, max, &sub_result);
+                bool success = buf->scan(min, max, &sub_result);
 
-                if (sub_result != nullptr && sub_result->length > 0){
+                if (sub_result != nullptr && success == true && sub_result->length > 0){
+                    int sub_len = sub_result->length;
+                    //std::cout << "Scan memtree 2: " << sub_result->length << std::endl;
                     result_temp = (kv_pair*)malloc(sizeof(kv_pair) * sub_result->length);
-                    for (int i = 0; i < sub_result->length; i++) {
+                    for (int i = 0; i < sub_len; i++) {
                         result_temp[i].key = sub_result->key;
                         result_temp[i].value = sub_result->value;
                         sub_result = sub_result->next;
                     }
-                    result_temp_len = sub_result->length;
+                    result_temp_len = sub_len;
                 }
 
             }

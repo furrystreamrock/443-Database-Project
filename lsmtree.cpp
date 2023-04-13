@@ -13,7 +13,7 @@
 #include <climits>
 #include <limits.h>
 
-const int PAGE_LENGTH = 64;
+const int PAGE_LENGTH = 250000;
 const int LSM_SIZE = 2; //DO NOT CHANGE
 const int buf_len = 0;
 
