@@ -455,10 +455,10 @@ class Database {
     
     public: 
 
-		Database(int cap)
+		Database()
 		{
             database_name = "";
-			memtable_size = cap;
+			memtable_size = PAGE_LENGTH;
             memtable = nullptr;
             num_files = 0;
 			srand(time(NULL));

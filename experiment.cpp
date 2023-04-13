@@ -5,14 +5,14 @@
 
 int main() {
 
-    Database* db = new Database(4);
+    Database* db = new Database();
 
-    STAGE = 3;
+    STAGE = 1;
     
 	db->reset("testDB");
 	db->open("testDB");
 
-    int n = 20;
+    int n = 100;
     double put_total = 0.0;
     if (true){
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();

@@ -13,7 +13,7 @@
 #include <climits>
 #include <limits.h>
 
-const int PAGE_LENGTH = 4;
+const int PAGE_LENGTH = 8;
 const int LSM_SIZE = 2;
 const int buf_len = 0;
 
@@ -560,7 +560,10 @@ int apple = 0;
 
             output << num_files << "\n" ;
             for (int i = 0; i < BITMAP_SIZE; i++) {
-                output << file_bitmap[i] << "," ;
+                output << file_bitmap[i] ;
+                if (i < BITMAP_SIZE - 1) {
+                    output << ",";
+                }
             }
             output << "\n" ;
 
@@ -613,7 +616,11 @@ int apple = 0;
 
             for (int i = 0; i < BITMAP_SIZE; i++) {
                 std::string bitmap_val;
-                std::getline(f, bitmap_val, ',');
+                if (i == BITMAP_SIZE - 1) {
+                    std::getline(f, bitmap_val);
+                } else {
+                    std::getline(f, bitmap_val, ',');
+                }
                 this->file_bitmap[i] = stoi(bitmap_val);
             }
 
@@ -633,7 +640,7 @@ int apple = 0;
                 }
                 
                 node->num_files = stoi(num_node_files);
-                if (stoi(num_node_files) > 0) {
+                if (node->num_files > 0) {
                     node->page_origin[0] = stoi(page_origin);
                     node->page_length[0] = stoi(page_length);
                 }
