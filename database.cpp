@@ -28,6 +28,7 @@ class Database {
     std::string database_name;
 	
 	//stuff for the buffer
+	int search_style;
 	const int min_buffer_depth = 3; 
 	const int max_buff_depth = 5;
 	int curr_buffer_depth;
@@ -430,8 +431,65 @@ class Database {
 		
 		
 //----------------------------------buffer methods end-------------------------------------------------	
-
-
+		SST* fetch(unsigned long key, int entries)
+		{//fetch the SST for from file, and put it into the buffer
+			std::string filename = std::to_string(key) + ".bin";
+			std::ifstream f(filename, std::ios::out | std::ios::binary);
+			if(!f.is_open())
+			{//if this happens, the db instance should exit instantly to preserve data pages
+				std::cerr << "CRITICAL ERROR, Fetch for key: " << key << " failed" << std::endl;
+				exit(1);
+			}
+			SST* sst = new SST();
+			f.read((char *)(sst->key), sizeof(unsigned long));
+			f.read((char *)(sst->entries), sizeof(int));
+			f.read((char *)(sst->minkey), sizeof(int));
+			f.read((char *)(sst->maxkey), sizeof(int));
+			f.read((char *)(sst->data), sizeof(kv_pair)*entries);
+			return sst;
+		}
+		
+		void flush(SST* sst)
+		{//flush SST to file, write it as a binary file: formatting specified in project document. Note** this does not clean up the memory for SST, just writes.
+			//write order: key, entries, min, max, data. All densely written
+			std::string filename = std::to_string(sst->key) + ".bin";
+			std::ofstream f(filename, std::ios::out | std::ios::binary);
+			if(!f.is_open())
+			{//if this happens, the db instance should exit instantly to preserve data pages
+				std::cerr << "CRITICAL ERROR, Fetch for key: " << key << " failed" << std::endl;
+				exit(1);
+			}
+			
+			f.write((char *)(sst->key), sizeof(unsigned long));
+			f.write((char *)(sst->entries), sizeof(int));
+			f.write((char *)(sst->minkey), sizeof(int));
+			f.write((char *)(sst->maxkey), sizeof(int));
+			f.write((char *)(sst->data), sizeof(kv_pair)*sst->entries);
+		}
+		
+		int bin_search(SST* sst, int key, bool* found)
+		{//Binary search to find KV pair in given SST, sets found to true on success, false otherwise
+			int bottom = 0; 
+			int top = sst->entries-1;
+			*found = false;
+			while(bottom <= top)
+			{
+				int mid =( bottom + top)/2;
+				if(sst->data[mid].key == key)
+				{
+					*found = true;
+					return sst->data[mid].value;
+				}
+				
+				if(sst->data[mid].key< key)
+					bottom = mid + 1;
+				else
+					top = mid - 1;
+			}
+			return 1;
+		}
+		
+		
         list_node* get_list_end(list_node* start){
             int len = start->length;
             list_node* curr = start;
@@ -450,74 +508,6 @@ class Database {
                 delete curr;
                 curr = temp;
             }
-        }
-
-
-        bool binary_search(kv_pair* a, int len, int key, kv_pair** result){
-            int pivot = (len / 2);
-            if (a[pivot].key == key) {
-                *result = (a + pivot);
-                return true;
-            }
-
-            if (len == 2){ 
-                if (a[0].key == key) {
-                    *result = a;
-                    return true;
-                } else if (a[1].key == key) {
-                    *result = (a + 1);
-                    return true;
-                } else {
-                    if (abs(a[0].key - key) > abs(a[1].key - key)) {
-                        *result = (a + 1);
-                    } else {
-                        *result = (a);
-                    }
-                    return false;
-                }
-            } else if (len == 1) {
-                *result = a;
-                if (a[0].key == key) {
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-
-            if (a[pivot].key > key) {
-                return binary_search(a, pivot, key, result);
-            } else {
-                return binary_search(a + pivot + 1, len - pivot, key, result);
-            }
-            return false;
-        }
-        bool binary_scan(kv_pair* a, int len, int min, int max, kv_pair** start, kv_pair** end){
-            kv_pair* result_min = nullptr;
-            bool found_min = binary_search(a, len, min, &result_min);
-            if (!found_min) {
-                if (result_min->key < min){
-                    if (result_min - a == 0){
-                        return false;
-                    }
-                    result_min += 1;
-                }
-            }
-            *start = result_min;
-
-            
-            kv_pair* result_max = nullptr;
-            bool found_max = binary_search(a, len, max, &result_max);
-            if (!found_max) {
-                if (result_max->key > max){
-                    if (result_max - a == len){
-                        return false;
-                    }
-                    result_max -= 1;
-                }
-            }
-            *end = result_max;
-
-            return true;
         }
 
         
@@ -584,168 +574,72 @@ class Database {
 			srand(time(NULL));
 			initializeBuffer();
 			SST_DIR = new SST_directory();
+			search_style = 0;
 		}
 
         int get(int key, bool* found) 
 		{
 			bool in_db = false;
-			unsigned long hashkey = SST_DIR->get(key, &in_db, &found);
+			SST_node* stn = SST_DIR->get(key, &in_db, found);
+			unsigned long hashkey = stn->sst_key;
+			int entries = stn->entries;
 			if(!found)
 			{
 				std::cerr << "WARNING: key not found in database, Key: " << key << std::endl;
 				return 0;
 			}
+			SST* target = nullptr;
+			if(!in_db)//file currently out of buffer, must fetch it first into buffer
+			{
+				SST* sst = fetch(hashkey, entries);
+				insertIntoBuffer(sst);
+			}
 			
+			target = getSST(hashkey);
+			if(search_style == 0)//depending on 
+			{
+				bool sst_found;
+				int value = bin_search(target, key, &sst_found);
+				if(sst_found)
+				{
+					*found = true;
+					return value;
+				}
+				else
+				{
+					*found = false;
+					return 1;
+				}
+			}
+			if(search_style == 1)
+			{//TODO b tree search
+			}
         }
 		
-        int put(int key, int val) {
-            int success = memtable->insert(key, val);
-            
-            if (memtable->isFull()) {
-                memtable->inOrderFlush(get_next_file_name().c_str());
-                num_files++;
-                memtable->deleteAll();
-            }
-
-            return success;
-        }
-
-        void scan(int min, int max, kv_pair** result, int* result_length) {
-            memtab* curr = memtable;
-            //TODO: init linked list
-
-            list_node* total_result = nullptr;
-
-            std::cout << "Scan memtree: " << std::endl;
-
-            int curr_ind = 0;
-            if (curr_ind == 0) {
-                list_node* sub_result;
-                //TODO: scan 'curr' and add stuff to linked list
-                curr->scan(min, max, &sub_result);
-
-                if (sub_result != nullptr && sub_result->length > 0){
-                    total_result = sub_result;
-                    
-                    for (int j = 0; j < sub_result->length; j++) {
-                        std::cout << sub_result[j].key << ";";
-                    }
-                    std::cout << std::endl;
-                }
-
-                curr_ind++;
-            }
-
-            std::cout << "Scan sst begin: " << std::endl;
-
-            for (int i = 0; i < num_files; i++) {
-                int num_pairs;
-                kv_pair* pairs = load_sst_as_list(get_file_by_ind(i).c_str(), &num_pairs);
-                bool success = false;
-
-                kv_pair* min_pair = nullptr; 
-                kv_pair* max_pair = nullptr;
-                if (STAGE == 1) {
-                    //std::cout << "SCAN " << i << std::endl;
-                    success = binary_scan(pairs, num_pairs, min, max, &min_pair, &max_pair);
-                    //std::cout << "SCAN2 " << i << std::endl;
-
-
-                } else if (STAGE == 2) {
-
-                    btree* tree = new btree();
-                    tree->build(pairs, num_pairs);
-
-                    //kv_pair* min_pair = binary_search(&pairs, num_pairs, min);
-                    //kv_pair* max_pair = binary_search(&pairs, num_pairs, max);
-                    success = tree->scan(min, max, &min_pair, &max_pair);
-
-                    
-                    tree->clear_all();
-                } else {
-
-                }
-
-                if (success == true) {
-                    kv_pair* curr_pair = min_pair;
-                    
-                    bool found = false;
-                    if (curr_pair != max_pair + 1){
-                        found = true;
-                        std::cout << "Scan sst " << i << ":" << std::endl;
-                    }
-
-                    int sub_len = 0;
-                    list_node* sub_result = nullptr;
-                    list_node* sub_curr = nullptr;
-                    while (curr_pair != max_pair + 1) {
-                        list_node* sub_new = new list_node(curr_pair->key, curr_pair->value);
-                        if (sub_result == nullptr) {
-                            sub_result = sub_new;
-                        } else {
-                            sub_curr->next = sub_new;
-                        }
-                        sub_curr = sub_new;
-
-                        
-                        std::cout << curr_pair->key << ";";
-
-                        curr_pair++;
-                        sub_len++;
-                    }
-                    if (found){
-                        std::cout << std::endl;
-                    }
-                    if (sub_len > 0) {
-                        sub_result->length = sub_len;
-	                    //std::cout << "sub result length "<< sub_result->length << std::endl;
-                    }
-
-                    //connect results
-                    if (sub_result != nullptr) {
-                        if (total_result == nullptr) {
-                            total_result = sub_result;
-                            //std::cout << "new total result length "<< total_result->length << std::endl;
-                        } else {
-                            list_node* end = get_list_end(total_result);
-                            if (sub_result != nullptr) {
-                                int sub_len = 0;
-                                sub_len = sub_result->length;
-                                end->next = sub_result;
-                                total_result->length = total_result->length + sub_len;
-                                //std::cout << "new total result length 2 "<< total_result->length << std::endl;
-                            }
-                        }
-                    }
-                }         
-                
-                //TODO: someth in memtab appears to delete the last loaded sst as well
-                //if (i != num_files) {
-                    //FREES THE LOADED PAIRLIST
-                    free(pairs);
-                //}
-            }
+        void put(int key, int val)
+		{
+			bool in_db = false;
+			bool found = false;
+			unsigned long hashkey = (SST_DIR->get(key, &in_db, &found))->sst_key;
+			if(!in_db)//if directory shows that currently page not in buffer, we must fetch it:
+				fetch(hashkey);
+				
+			kv_pair* kv = new kv_pair(key, val);
+			SST* new_sst = SST_DIR->put(kv);
+			
+			if(new_sst)
+			{//for now write this sst to file
+				flush(new_sst);
+			}
+			delete(kv);
+		}
             
 
-            int res_len = 0;       
-            if (total_result != nullptr) {
-                *result = (kv_pair*)malloc(sizeof(kv_pair) * total_result->length);
-                list_node* currResult = total_result;
-                
-                *result_length = total_result->length;
-                for (int i = 0; i < total_result->length; i++) {
-                    (*result)[i].key = currResult->key;
-                    (*result)[i].value = currResult->value;
-                    currResult = currResult->next;
-                }
-                std::cout << "result length "<< total_result->length << std::endl;
-
-                free_linked_list(total_result);
-            } else {
-                std::cout << "nothing found. " << std::endl;
-                *result = nullptr;
-            }
+        void scan() 
+		{
+            
         }
+            
 
 
         void reset(const char* database_name) {

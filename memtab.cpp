@@ -439,6 +439,7 @@ struct SST_node
 	SST* sst;
 	int min;
 	int max;
+	int entries;
 	unsigned long sst_key;
 	int split;
 	SST_node* left;
@@ -497,53 +498,12 @@ class SST_directory
 			sst->entries++;
 			return;
 		}
-	
-	public: 
-		SST_directory()
-		{
-			root = nullptr;
-		}
-		unsigned long get(int key, bool* loaded, bool* found)
-		{//return the sst key for the given key. loaded is set to true when the target SST is in the buffer, false otherwise
-		//if found flag is set to true, otherwise false;
-			*found = false;
-			SST_node* curr = root;
-			*loaded  = false;
-			while(true)
-			{
-				//leaf node
-				if(!curr->left)
-				{
-					if(key >= curr->min && key <= curr->max)
-					{
-						if(curr->sst)
-							*loaded = true;
-						*found = true;
-						return curr->sst_key;
-					}
-					else
-					{
-						std::cerr << "WARNING: tried to get key not in Database!" << std::endl;
-						return 0;//Indicates that we could not find the sst. 
-					}
-				}
-				else
-				{
-					if(key >= curr->split)
-						curr = curr->right;
-					else
-						curr = curr->left;
-				}
-			}
-			return 0;//for the compiler
-		}
 		
 		
 		SST* insert(kv_pair* kv, SST_node* n)
 		{//will return nullptr if an existing SST was updated and no new tables made.
 		//if the insertion caused a split, will return an SST of the *NEWLY created table that DOESNT contain the 
 		//just inserted kv_pair. the existing SST will contain it, and the new one will have to be handled.
-			SST_node* curr = root;
 			
 			if(!root)//if this is the first ever insert, make a root sst_node
 			{
@@ -551,8 +511,8 @@ class SST_directory
 				root->sst = new SST();
 				root->sst_key = root->sst->key;
 				root->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
-				root->sst->data[root->sst->entries].key = kv->key;
-				root->sst->data[root->sst->entries].value = kv->value;
+				root->sst->data[0].key = kv->key;
+				root->sst->data[0].value = kv->value;
 				root->sst->entries++;
 				root->sst->minkey = kv->value;
 				root->sst->maxkey = kv->value;
@@ -641,6 +601,64 @@ class SST_directory
 			else
 				return n->right->sst;
 	}
+	public: 
+		SST_directory()
+		{
+			root = nullptr;
+		}
+		
+		SST* put(kv_pair* kv)
+		{//insert a new KV pair into the directory, if it causes a new SST to be made for space, return it.
+		//this method assumes that the target page is LOADED IN BUFFER ALWAYS. should always 
+			return insert(kv, root);
+		}
+		
+		void update_sst_node(SST* sst)
+		{//lets the directory know when a page has been loaded to buffer
+		//sets the SST's node pointer field to point to its addr in buffer
+		
+		}
+		
+		void evicted(SST* sst)
+		{//lets the directory know when a page has been evicted from buffer
+		//sets the SST's node that pointed to it in buffer to now point to 'nullptr'
+		}
+		SST_node* get(int key, bool* loaded, bool* found)
+		{//return the sst key for the given key. loaded is set to true when the target SST is in the buffer, false otherwise
+		//if found flag is set to true, otherwise false;
+			*found = false;
+			SST_node* curr = root;
+			*loaded  = false;
+			while(true)
+			{
+				//leaf node
+				if(!curr->left)
+				{
+					if(key >= curr->min && key <= curr->max)
+					{
+						if(curr->sst)
+							*loaded = true;
+						*found = true;
+						return curr;
+					}
+					else
+					{
+						std::cerr << "WARNING: tried to get key not in Database!" << std::endl;
+						return nullptr;//Indicates that we could not find the sst. 
+					}
+				}
+				else
+				{
+					if(key >= curr->split)
+						curr = curr->right;
+					else
+						curr = curr->left;
+				}
+			}
+			return 0;//for the compiler
+		}
+		
+		
 	
 	void testInsert()
 	{
