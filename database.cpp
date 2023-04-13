@@ -29,11 +29,11 @@ class Database {
 	
 	//stuff for the buffer
 	int search_style;
-	const int min_buffer_depth = 3; 
-	const int max_buff_depth = 5;
+	int min_buffer_depth = 2; 
+	int max_buff_depth = 5;
 	int curr_buffer_depth;
 	int curr_buffer_entries;
-	int evict_policy; //NOTE TO SELF######: assign policies to ints. (0 is lru, 1 is clock, etc)
+	int evict_policy; //(0 is lru, 1 is clock, etc)
 	node_dll* lru_head;
 	node_dll* lru_tail;
 	node_dll* clock_pointer;
@@ -93,8 +93,8 @@ class Database {
 			unsigned long hash = bitHash(curr_buffer_depth, sst->key);
 			bucket_node* curr_head = buffer_directory[hash];
 			//std::cout << curr_buffer_depth << std::endl;
-			std::cout << "Buffer pages: " << curr_buffer_entries << std::endl;
-			std::cout << "Inserting SST: " << sst->key << " at hash: "<<  int(hash) << std::endl;
+			//std::cout << "Buffer pages: " << curr_buffer_entries << std::endl;
+			//std::cout << "Inserting SST: " << sst->key << " at hash: "<<  int(hash) << std::endl;
 			if(!curr_head)
 				return;
 			while(curr_head->next)
@@ -104,7 +104,7 @@ class Database {
 			std::memcpy(curr_head->sst, sst, sizeof(SST));
 			
 			curr_head->sst->data = (kv_pair*)(malloc(SST_BYTES*sizeof(kv_pair)));
-			std::cout << sst->data[0].key << std::endl;
+			//std::cout << sst->data[0].key << std::endl;
 			std::memcpy(curr_head->sst->data, sst->data, SST_BYTES*sizeof(kv_pair));
 			
 			curr_head->next = new bucket_node();
@@ -180,7 +180,7 @@ class Database {
 			cleanBucket(lru_tail->target);
 			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
-			std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
+			//std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
 /* 			if(lru_tail->target->prev && lru_tail->target->prev->sst)
 				std::cout << "Prev: " << lru_tail->target->prev->sst->key << std::endl;
 			if(lru_tail->target->next && lru_tail->target->next->sst)
@@ -198,9 +198,9 @@ class Database {
 			
 			if(target->lru_node)
 			{
-				std::cout << target->sst->key << std::endl;
+				//std::cout << target->sst->key << std::endl;
 				node_dll* n = (node_dll*) (target->lru_node);
-				std::cout << n->target->sst->key << std::endl;
+				//std::cout << n->target->sst->key << std::endl;
 				if(n->prev)
 					std::cout << n->prev->target->sst->key << std::endl;
 				if(n->next)
@@ -232,7 +232,7 @@ class Database {
 		}
 		void clockEvict()
 		{
-			std::cout << "Clock Evicting " << clock_pointer->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, clock_pointer->target->sst->key) << std::endl;
+			//std::cout << "Clock Evicting " << clock_pointer->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, clock_pointer->target->sst->key) << std::endl;
 			if(!clock_pointer->target->prev)//first in the bucket.
 			{
 				buffer_directory[bitHash(curr_buffer_depth, clock_pointer->target->sst->key)] = clock_pointer->target->next;
@@ -277,7 +277,7 @@ class Database {
 		
 		void doubleBufferSize()
 		{
-			std::cout << "Doubling buffer capacity, new depth: " << curr_buffer_depth + 1 << std::endl;
+			//std::cout << "Doubling buffer capacity, new depth: " << curr_buffer_depth + 1 << std::endl;
 			if(curr_buffer_depth >= max_buff_depth)
 			{
 				std::cerr << "Warning, can't double buffer size" << std::endl;
@@ -317,7 +317,7 @@ class Database {
 		
 		void halveBufferSize()
 		{
-			std::cout << "Halving buffer capacity, new depth: " << curr_buffer_depth - 1 << std::endl;
+			//std::cout << "Halving buffer capacity, new depth: " << curr_buffer_depth - 1 << std::endl;
 			if(curr_buffer_depth <= min_buffer_depth)
 			{
 				std::cerr << "Warning, can't double buffer size" << std::endl;
@@ -441,11 +441,12 @@ class Database {
 				exit(1);
 			}
 			SST* sst = new SST();
-			f.read((char *)(sst->key), sizeof(unsigned long));
-			f.read((char *)(sst->entries), sizeof(int));
-			f.read((char *)(sst->minkey), sizeof(int));
-			f.read((char *)(sst->maxkey), sizeof(int));
+			f.read((char *)&(sst->key), sizeof(unsigned long));
+			f.read((char *)&(sst->entries), sizeof(int));
+			f.read((char *)&(sst->minkey), sizeof(int));
+			f.read((char *)&(sst->maxkey), sizeof(int));
 			f.read((char *)(sst->data), sizeof(kv_pair)*entries);
+			f.close();
 			return sst;
 		}
 		
@@ -456,15 +457,16 @@ class Database {
 			std::ofstream f(filename, std::ios::out | std::ios::binary);
 			if(!f.is_open())
 			{//if this happens, the db instance should exit instantly to preserve data pages
-				std::cerr << "CRITICAL ERROR, Fetch for key: " << key << " failed" << std::endl;
+				std::cerr << "CRITICAL ERROR, Fetch for key: " << sst->key << " failed" << std::endl;
 				exit(1);
 			}
 			
-			f.write((char *)(sst->key), sizeof(unsigned long));
-			f.write((char *)(sst->entries), sizeof(int));
-			f.write((char *)(sst->minkey), sizeof(int));
-			f.write((char *)(sst->maxkey), sizeof(int));
+			f.write((char *)(&(sst->key)), sizeof(unsigned long));
+			f.write((char *)(&(sst->entries)), sizeof(int));
+			f.write((char *)(&(sst->minkey)), sizeof(int));
+			f.write((char *)(&(sst->maxkey)), sizeof(int));
 			f.write((char *)(sst->data), sizeof(kv_pair)*sst->entries);
+			f.close();
 		}
 		
 		int bin_search(SST* sst, int key, bool* found)
@@ -620,9 +622,11 @@ class Database {
 		{
 			bool in_db = false;
 			bool found = false;
-			unsigned long hashkey = (SST_DIR->get(key, &in_db, &found))->sst_key;
+			SST_node* stn = SST_DIR->get(key, &in_db, &found);
+			unsigned long hashkey = stn->sst_key;
+			int entries = stn->entries; 
 			if(!in_db)//if directory shows that currently page not in buffer, we must fetch it:
-				fetch(hashkey);
+				fetch(hashkey, entries);
 				
 			kv_pair* kv = new kv_pair(key, val);
 			SST* new_sst = SST_DIR->put(kv);
@@ -727,39 +731,26 @@ class Database {
             delete memtable;
         }
 		
-		void TESTINGBUFFER()
-		{//stress test buffer
-			/*IMPORTANT NOTE****** im not sure if its my system, but if I run at 10 pages for 10 trials,
-			I will get a segfault ~10% of the time.
-			However if I run 1000 pages 10 times, I will still get a 10% segfault rate.
-			Unsure if its instability with using a mirror compiler
-			*/
+		void TESTINGBUFFER(int eviction, int max_depth, int iter=1000)
+		{//testing buffer in mike_experiment.cpp using this 
+		
+			evict_policy = eviction;
+			max_buff_depth = max_depth;
 			srand(time(NULL));
 			unsigned int test_key = 0;
-			for(int i = 0; i < 300; i++)
+			for(int i = 0; i < iter; i++)
 			{
 				SST* tab0 = new SST();
-				std::cout<< "Created table :" << tab0->key << std::endl;
+				//std::cout<< "Created table :" << tab0->key << std::endl;
 				tab0->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				for(int j = 0; j < 10; j++)
 				{
 					tab0->data[j].key = i*100+j;
 					tab0->data[j].value = i*100+j;
 				}
-				std::cout << "----------------------INSERTING: " << i << "----------------------" << std::endl;		
+				//std::cout << "----------------------INSERTING: " << i << "----------------------" << std::endl;		
 				insertIntoBuffer(tab0);
-				free(tab0->data);
-				
-				if(i == 3)
-				{
-					test_key = tab0->key;
-					
-				}
-				
-				if(i%5 == 0 && i >= 3)
-					getSST(test_key);
-				delete(tab0);
-				
+				free(tab0->data);		
 				
 			}
 			

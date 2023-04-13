@@ -40,7 +40,7 @@ struct SST
 	int maxkey;
 	int entries; //must be < MAX_ENTRIES;
 	unsigned long key;//hashable key
-	SST(): data(nullptr), minkey(0), maxkey(0), key(getSSTKey()) {}
+	SST(): data(nullptr), minkey(0), maxkey(0), key(getSSTKey()), entries(0) {}
 };
 
 struct bucket_node

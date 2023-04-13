@@ -1,21 +1,35 @@
 
 #include "database.cpp"
+#include <iostream>
 #include <chrono>
+#include <unistd.h>
 
-
-int main() {
+int main() 
+{
 	Database* db = new Database(3);
 
-	db->open("testDB");
+	db->open("bufferTestingDB");
 
-    db->put(2, 7);
-    db->put(3, 8);
-    db->put(4, 9);
-    db->put(5, 10);
 	std::cout << "buffer testing:" << std::endl;
-	db->TESTINGBUFFER();
+
+	//testing a thousand page insertions, at varying max buffer depth:
+	int depths[] = {2, 3, 4, 5, 6};
+	for(int i = 0; i < 5; i++)
+	{
+		auto start = std::chrono::steady_clock::now();
+		db->TESTINGBUFFER(0, depths[i]);
+		auto finish = std::chrono::steady_clock::now();
+		
+		std::cout << i << " : " << std::chrono::duration_cast<std::chrono::duration<double> >(finish - start).count() << std::endl;
+	}
+	
 	std::cout << "----------------------testing done------------------------" << std::endl;
-    
+    db->close();
+	
+	
+	
+	SST_directory* sst_dir = new SST_directory();
+	sst_dir->testInsert();
 	return 0;
     /* int result;
     db->get(2, &result);
