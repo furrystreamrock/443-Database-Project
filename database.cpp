@@ -99,14 +99,12 @@ class Database {
 				return;
 			while(curr_head->next)
 				curr_head = curr_head->next;
-			std::cout << "Checkpoint 1" << std::endl;
 			curr_head->sst = (SST*)malloc(sizeof(SST));
 			std::memcpy(curr_head->sst, sst, sizeof(SST));
 			
 			curr_head->sst->data = (kv_pair*)(malloc(MAX_ENTRIES*sizeof(kv_pair)));
 			std::memcpy(curr_head->sst->data, sst->data, MAX_ENTRIES*sizeof(kv_pair));
-			
-			std::cout << "Checkpoint 2" << std::endl;
+
 			curr_head->next = new bucket_node();
 			curr_head->next->prev = curr_head;
 			
@@ -146,7 +144,7 @@ class Database {
 					clock_pointer->prev = n;
 				}
 			}
-			std::cout << "Checkpoint 3" << std::endl;
+
 			printBuckets();
 			
 		}	
