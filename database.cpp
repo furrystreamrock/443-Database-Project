@@ -582,41 +582,19 @@ class Database {
 
         int get(int key, bool* found) 
 		{
-			bool in_db = false;
-			SST_node* stn = SST_DIR->get(key, &in_db, found);
-			unsigned long hashkey = stn->sst_key;
-			int entries = stn->entries;
-			if(!found)
-			{
-				std::cerr << "WARNING: key not found in database, Key: " << key << std::endl;
+			int page_entries;
+			bool sst_found;
+			bool in_buffer;
+			unsigned long pagekey = SST_DIR->getSSTkey(key, &sst_found, &in_buffer, &page_entries);
+			if(!sst_found)
 				return 0;
-			}
-			SST* target = nullptr;
-			if(!in_db)//file currently out of buffer, must fetch it first into buffer
-			{
-				SST* sst = fetch(hashkey, entries);
-				insertIntoBuffer(sst);
-			}
 			
-			target = getSST(hashkey);
-			if(search_style == 0)//depending on 
-			{
-				bool sst_found;
-				int value = bin_search(target, key, &sst_found);
-				if(sst_found)
-				{
-					*found = true;
-					return value;
-				}
-				else
-				{
-					*found = false;
-					return 1;
-				}
-			}
-			if(search_style == 1)
-			{//TODO b tree search
-			}
+			if(!in_buffer)
+				fetch(pagekey, page_entries);
+			
+			SST* target = getSST(pagekey);
+			result = bin_search(target, key, found);
+			return result;
         }
 		
         void put(int key, int val)

@@ -539,7 +539,10 @@ class SST_directory
 				else
 					return insert(kv, n->left);
 			}
-			
+			if(!n->sst)
+			{
+				std::cerr << "INSERTION ERROR: calling function must make sure "
+			}
 			//leaf node, we insert into this SST
 			if(n->sst->entries < MAX_ENTRIES)
 			{
@@ -589,7 +592,6 @@ class SST_directory
 				n->left->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				std::memcpy(n->left->sst->data, temp, (MAX_ENTRIES/2)*sizeof(kv_pair));
 				
-				
 			}
 			else
 			{
@@ -638,34 +640,51 @@ class SST_directory
 		{//lets the directory know when a page has been evicted from buffer
 		//sets the SST's node that pointed to it in buffer to now point to 'nullptr'
 		}
-		SST_node* get_sst(int key, bool* loaded, bool* found)
-		{//return the sst key for the given key. loaded is set to true when we had to load the SST in from file into buffer, false otherwise
-		//if found flag is set to true, otherwise false;
+		
+		
+		unsigned long getSSTKey(int key, bool* found, bool* in_buffer, int* entries)
+		{//return the SST key for a given key, set flag found to false if not in table, true otherwise
 			*found = false;
+			
 			SST_node* curr = root;
-			*loaded  = false;
+			
 			while(true)
 			{
-				//leaf node
 				if(!curr->left)
-				{
-					if(key >= curr->min && key <= curr->max)
+				{// we are at a leaf
+					if(key < curr->min || key > curr->max)//out of range
 					{
-						if(curr->sst)
-							*loaded = false;
-						*found = true;
-						return curr;
+						*in_buffer = false;
+						return 0;
 					}
+					if(curr->sst)
+						*in_buffer= true;
 					else
-					{//need to load in the sst
-				
-					
-						std::cerr << "WARNING: tried to get key not in Database!" << std::endl;//failed to find file
-						return nullptr;//Indicates that we could not find the sst. 
-					}
+						*in_buffer
+					*found = true;
+					*entries = curr->entries;
+					return curr->sst_key;
 				}
 				else
-				{//
+				{
+					if(key >= curr->split)
+						curr = curr->right;
+					else
+						curr = curr->left;
+				}
+			}
+		}	
+
+		unsigned long getInsertKey(int key)
+		{//return the sst that would be inserted into for the given key
+			while(true)
+			{
+				if(!curr->left)
+				{// we are at a leaf
+					return curr->sst_key;
+				}
+				else
+				{
 					if(key >= curr->split)
 						curr = curr->right;
 					else
@@ -673,8 +692,7 @@ class SST_directory
 				}
 			}
 		}
-		
-		
+		 
 	
 	void testInsert()
 	{
