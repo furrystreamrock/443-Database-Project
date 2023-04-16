@@ -452,6 +452,8 @@ class SST_directory
 {
 	SST_node* root;
 	private:
+		int get()
+		
 		void sstInsert(SST* sst, kv_pair* kv)
 		{//use binary search, insert the kv into the sst at the appropriate index in the SST's data field.
 			int top = sst->entries;//one end of the sst.
@@ -504,18 +506,24 @@ class SST_directory
 		{//will return nullptr if an existing SST was updated and no new tables made.
 		//if the insertion caused a split, will return an SST of the *NEWLY created table that DOESNT contain the 
 		//just inserted kv_pair. the existing SST will contain it, and the new one will have to be handled.
+		//need to get the table we are about to insert into if its not in the SST
 			
 			if(!root)//if this is the first ever insert, make a root sst_node
 			{
 				root = new SST_node();
 				root->sst = new SST();
 				root->sst_key = root->sst->key;
+				root->min = kv->value;
+				root->max = kv->value;
+				root->entries++;
+				
 				root->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				root->sst->data[0].key = kv->key;
 				root->sst->data[0].value = kv->value;
 				root->sst->entries++;
 				root->sst->minkey = kv->value;
 				root->sst->maxkey = kv->value;
+
 				return root->sst;
 			}
 			
@@ -523,7 +531,7 @@ class SST_directory
 			{
 				if(!n->left)//not internal node... screwed up
 				{
-					std::cerr << "CRITICAL ERROR: trying to get/insert into non-loaded SST" << std::endl;
+					std::cerr << "CRITICAL ERROR: page directory : insert" << std::endl;
 					return nullptr;
 				}
 				if(kv->key >= n->split)//internal nodes are gauranteed to have both left and right child 
@@ -539,11 +547,18 @@ class SST_directory
 				n->sst->data[i].key = kv->key;
 				n->sst->data[i].value = kv->value;
 				n->sst->entries++;
+				n->entries++;
 				//update range of table if needed
 				if(kv->key > n->sst->maxkey)
+				{
 					n->sst->maxkey = kv->key;
+					n->max = kv->key;
+				}
 				if(kv->key < n->sst->minkey)
+				{
 					n->sst->minkey = kv->key;
+					n->min = kv->key;
+				}
 				return nullptr;
 			}
 			//full, require to split the tree
@@ -623,8 +638,8 @@ class SST_directory
 		{//lets the directory know when a page has been evicted from buffer
 		//sets the SST's node that pointed to it in buffer to now point to 'nullptr'
 		}
-		SST_node* get(int key, bool* loaded, bool* found)
-		{//return the sst key for the given key. loaded is set to true when the target SST is in the buffer, false otherwise
+		SST_node* get_sst(int key, bool* loaded, bool* found)
+		{//return the sst key for the given key. loaded is set to true when we had to load the SST in from file into buffer, false otherwise
 		//if found flag is set to true, otherwise false;
 			*found = false;
 			SST_node* curr = root;
@@ -637,25 +652,26 @@ class SST_directory
 					if(key >= curr->min && key <= curr->max)
 					{
 						if(curr->sst)
-							*loaded = true;
+							*loaded = false;
 						*found = true;
 						return curr;
 					}
 					else
-					{
-						std::cerr << "WARNING: tried to get key not in Database!" << std::endl;
+					{//need to load in the sst
+				
+					
+						std::cerr << "WARNING: tried to get key not in Database!" << std::endl;//failed to find file
 						return nullptr;//Indicates that we could not find the sst. 
 					}
 				}
 				else
-				{
+				{//
 					if(key >= curr->split)
 						curr = curr->right;
 					else
 						curr = curr->left;
 				}
 			}
-			return 0;//for the compiler
 		}
 		
 		

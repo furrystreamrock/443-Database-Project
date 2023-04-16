@@ -78,7 +78,7 @@ class Database {
 		void insertIntoBuffer(SST* sst, bool reinsert = false)
 		{//inserts table into buffer, evicts if needed
 		//should be done on pages we know aren't already in the buffer
-			
+		//Also, the passed SST* sst should already be MALLOCED!!!!
 				
 			if(curr_buffer_entries >= pow(2, curr_buffer_depth) * 1)//'full' capacity threshold
 			{
@@ -99,11 +99,10 @@ class Database {
 				return;
 			while(curr_head->next)
 				curr_head = curr_head->next;
-			curr_head->sst = (SST*)malloc(sizeof(SST));
-			std::memcpy(curr_head->sst, sst, sizeof(SST));
+			curr_head->sst = sst;//sst should already be malloced.
 			
-			curr_head->sst->data = (kv_pair*)(malloc(MAX_ENTRIES*sizeof(kv_pair)));
-			std::memcpy(curr_head->sst->data, sst->data, MAX_ENTRIES*sizeof(kv_pair));
+			/* curr_head->sst->data = (kv_pair*)(malloc(MAX_ENTRIES*sizeof(kv_pair)));
+			std::memcpy(curr_head->sst->data, sst->data, MAX_ENTRIES*sizeof(kv_pair)); */
 
 			curr_head->next = new bucket_node();
 			curr_head->next->prev = curr_head;
@@ -177,7 +176,8 @@ class Database {
 				lru_tail->target->prev->next = lru_tail->target->next;
 				lru_tail->target->next->prev = lru_tail->target->prev;
 			}
-			cleanBucket(lru_tail->target);
+			flush(lru_tail->target->sst);//write sst to file
+			cleanBucket(lru_tail->target);//cleanup memory 
 			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
 			std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
@@ -263,7 +263,8 @@ class Database {
 			clock_pointer->next->prev = clock_pointer->prev;
 			//process the bucket's delete
 			node_dll* temp = clock_pointer->next;
-			cleanBucket(clock_pointer->target);
+			flush(clock_pointer->target->sst);//write to file
+			cleanBucket(clock_pointer->target);//cleanup disk space
 			delete(clock_pointer);
 			clock_pointer = temp;
 
