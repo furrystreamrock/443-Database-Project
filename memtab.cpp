@@ -452,54 +452,7 @@ class SST_directory
 {
 	SST_node* root;
 	private:
-		int get()
 		
-		void sstInsert(SST* sst, kv_pair* kv)
-		{//use binary search, insert the kv into the sst at the appropriate index in the SST's data field.
-			int top = sst->entries;//one end of the sst.
-			int bottom = 0;
-			while(top-bottom > 1)//converge the range in binary search
-			{
-				int mid = (top + bottom)/2;
-				if(sst->data[mid].key > kv->key)
-				{
-					top = mid;
-				}
-				else
-				{
-					bottom = mid;
-				}
-			}//top and bottom now straddle the correct key's index, if neither are the key themselves.
-		
-			if(sst->data[top].key == kv->key)//can treat this as update if key already in SST, although this is unintended, print warning
-			{
-				std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
-				sst->data[top].value = kv->value;
-				return;
-			}
-			if(sst->data[bottom].key == kv->key)
-			{
-				std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
-				sst->data[bottom].value = kv->value;
-				return;
-			}
-			
-			//make the update to the sst.
-			if(sst->entries > MAX_ENTRIES)
-			{
-				std::cerr << "Error, attempting to insert into full SST, insertion incomplete" << std::endl;
-				return;
-			}
-			
-			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
-			std::memcpy(temp, sst->data, MAX_ENTRIES*sizeof(kv_pair));
-			std::memcpy(&(sst->data[top+1]), &(temp[top]), MAX_ENTRIES - top - (int)(sizeof(kv_pair)));
-			sst->data[top].key = kv->key;
-			sst->data[top].value = kv->value;
-			free(temp);
-			sst->entries++;
-			return;
-		}
 		
 		
 		SST* insert(kv_pair* kv, SST_node* n)
@@ -541,7 +494,8 @@ class SST_directory
 			}
 			if(!n->sst)
 			{
-				std::cerr << "INSERTION ERROR: calling function must make sure "
+				std::cerr << "INSERTION ERROR: calling function must make sure sst in buffer!" << std::endl;
+				return nullptr;
 			}
 			//leaf node, we insert into this SST
 			if(n->sst->entries < MAX_ENTRIES)
@@ -623,6 +577,52 @@ class SST_directory
 		{
 			root = nullptr;
 		}
+		void sstInsert(SST* sst, kv_pair* kv)
+		{//use binary search, insert the kv into the sst at the appropriate index in the SST's data field.
+			int top = sst->entries;//one end of the sst.
+			int bottom = 0;
+			while(top-bottom > 1)//converge the range in binary search
+			{
+				int mid = (top + bottom)/2;
+				if(sst->data[mid].key > kv->key)
+				{
+					top = mid;
+				}
+				else
+				{
+					bottom = mid;
+				}
+			}//top and bottom now straddle the correct key's index, if neither are the key themselves.
+		
+			if(sst->data[top].key == kv->key)//can treat this as update if key already in SST, although this is unintended, print warning
+			{
+				std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
+				sst->data[top].value = kv->value;
+				return;
+			}
+			if(sst->data[bottom].key == kv->key)
+			{
+				std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
+				sst->data[bottom].value = kv->value;
+				return;
+			}
+			
+			//make the update to the sst.
+			if(sst->entries > MAX_ENTRIES)
+			{
+				std::cerr << "Error, attempting to insert into full SST, insertion incomplete" << std::endl;
+				return;
+			}
+			
+			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
+			std::memcpy(temp, sst->data, MAX_ENTRIES*sizeof(kv_pair));
+			std::memcpy(&(sst->data[top+1]), &(temp[top]), MAX_ENTRIES - top - (int)(sizeof(kv_pair)));
+			sst->data[top].key = kv->key;
+			sst->data[top].value = kv->value;
+			free(temp);
+			sst->entries++;
+			return;
+		}
 		
 		SST* put(kv_pair* kv)
 		{//insert a new KV pair into the directory, if it causes a new SST to be made for space, return it.
@@ -642,7 +642,7 @@ class SST_directory
 		}
 		
 		
-		unsigned long getSSTKey(int key, bool* found, bool* in_buffer, int* entries)
+		unsigned long getSSTKey(int key, bool* found, bool* in_buffer)
 		{//return the SST key for a given key, set flag found to false if not in table, true otherwise
 			*found = false;
 			
@@ -660,9 +660,8 @@ class SST_directory
 					if(curr->sst)
 						*in_buffer= true;
 					else
-						*in_buffer
+						*in_buffer;
 					*found = true;
-					*entries = curr->entries;
 					return curr->sst_key;
 				}
 				else
@@ -677,6 +676,7 @@ class SST_directory
 
 		unsigned long getInsertKey(int key)
 		{//return the sst that would be inserted into for the given key
+			SST_node* curr = root;
 			while(true)
 			{
 				if(!curr->left)

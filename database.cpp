@@ -432,7 +432,7 @@ class Database {
 		
 
 //----------------------------------buffer methods end-------------------------------------------------	
-		SST* fetch(unsigned long key, int entries)
+		SST* fetch(unsigned long key)
 		{//fetch the SST for from file, and put it into the buffer
 			std::string filename = std::to_string(key) + ".bin";
 			std::ifstream f(filename, std::ios::out | std::ios::binary);
@@ -442,11 +442,16 @@ class Database {
 				exit(1);
 			}
 			SST* sst = new SST();
+			sst->data = (kv_pair*)malloc(MAX_ENTRIES*sizeof(kv_pair));
 			f.read((char *)&(sst->key), sizeof(unsigned long));
 			f.read((char *)&(sst->entries), sizeof(int));
 			f.read((char *)&(sst->minkey), sizeof(int));
 			f.read((char *)&(sst->maxkey), sizeof(int));
-			f.read((char *)(sst->data), sizeof(kv_pair)*entries);
+			for(int i = 0 ; i < sst->entries; i++)
+			{
+				f.read((char*)(&(sst->data[i].key)), sizeof(int));
+				f.read((char*)(&(sst->data[i].value)), sizeof(int));
+			}
 			f.close();
 			return sst;
 		}
@@ -466,7 +471,13 @@ class Database {
 			f.write((char *)(&(sst->entries)), sizeof(int));
 			f.write((char *)(&(sst->minkey)), sizeof(int));
 			f.write((char *)(&(sst->maxkey)), sizeof(int));
-			f.write((char *)(sst->data), sizeof(kv_pair)*sst->entries);
+			for(int i = 0; i < sst->entries; i++)
+			{
+				f.write((char*)(&(sst->data[i].key)), sizeof(int));
+				f.write((char*)(&(sst->data[i].value)), sizeof(int));
+			}
+		
+			
 			f.close();
 		}
 		
@@ -570,51 +581,31 @@ class Database {
 
 		Database(int cap)
 		{
-            database_name = "";
-			memtable_size = cap;
-            memtable = nullptr;
-            num_files = 0;
 			srand(time(NULL));
 			initializeBuffer();
 			SST_DIR = new SST_directory();
 			search_style = 0;
+			std::cout << "Database Initiazlied" << std::endl;
 		}
 
         int get(int key, bool* found) 
 		{
-			int page_entries;
 			bool sst_found;
 			bool in_buffer;
-			unsigned long pagekey = SST_DIR->getSSTkey(key, &sst_found, &in_buffer, &page_entries);
+			unsigned long pagekey = SST_DIR->getSSTKey(key, &sst_found, &in_buffer);
 			if(!sst_found)
 				return 0;
 			
 			if(!in_buffer)
-				fetch(pagekey, page_entries);
+				fetch(pagekey);
 			
 			SST* target = getSST(pagekey);
-			result = bin_search(target, key, found);
+			int result = bin_search(target, key, found);
 			return result;
         }
 		
         void put(int key, int val)
 		{
-			bool in_db = false;
-			bool found = false;
-			SST_node* stn = SST_DIR->get(key, &in_db, &found);
-			unsigned long hashkey = stn->sst_key;
-			int entries = stn->entries; 
-			if(!in_db)//if directory shows that currently page not in buffer, we must fetch it:
-				fetch(hashkey, entries);
-				
-			kv_pair* kv = new kv_pair(key, val);
-			SST* new_sst = SST_DIR->put(kv);
-			
-			if(new_sst)
-			{//for now write this sst to file
-				flush(new_sst);
-			}
-			delete(kv);
 		}
             
 
@@ -623,7 +614,35 @@ class Database {
             
         }
             
-
+		void testReadWrite()
+		{
+			std::cout << "begin" << std::endl;
+			kv_pair* kv1 = new kv_pair(0, 0);
+			kv_pair* kv2 = new kv_pair(1 ,1);
+			kv_pair* kv3 = new kv_pair(2, 2);
+			kv_pair* kv4 = new kv_pair(3, 3);
+			kv_pair* kv5 = new kv_pair(4 ,4);
+			kv_pair* kv6 = new kv_pair(5, 5);
+			std::cout << "check 1" << std::endl;
+			SST* test = new SST();
+			test->data = (kv_pair*)malloc(MAX_ENTRIES*sizeof(kv_pair));
+			
+			SST_DIR->sstInsert(test, kv1);
+			SST_DIR->sstInsert(test, kv2);
+			SST_DIR->sstInsert(test, kv3);
+			SST_DIR->sstInsert(test, kv4);
+			SST_DIR->sstInsert(test, kv5);
+			SST_DIR->sstInsert(test, kv6);
+			
+			std::cout << "check 2" << std::endl;
+			test->key= 100000;
+			std::cout <<"FLUSHING" << std::endl;
+			flush(test);
+			std::cout << "FETCHING" << std::endl;
+			SST* test_result = fetch(test->key);
+			print_sst(test_result);
+			
+		}
 
         void reset(const char* database_name) {
             this->database_name = database_name;
@@ -657,38 +676,7 @@ class Database {
         }
 
         int open(const char* database_name) {
-            this->database_name = database_name;
-
- 
-
-            //check if database alr exists
-            std::ifstream f(get_db_file_name());
-	        if(!f.is_open()) {
-                //must make new db
-                std::cout << "Making new DB. " << std::endl;
-                num_files = 0;
-                memtable = new memtab(memtable_size);
-
-            } else {
-                //load the db
-                std::cout << "Loading DB. " << std::endl;
-                std::string temp;
-                std::getline(f, temp);
-
-                num_files = stoi(temp);
-                
-                std::getline(f, temp);
-                int buffer_empty = stoi(temp);
-
-                if (buffer_empty == 1) { 
-                    memtable = new memtab(memtable_size);
-                } else {
-                    memtable = build_from_file(get_file_by_ind(num_files).c_str());
-                }
-            }
-
-            //TODO: report errors
-            return 0;
+			return 0;
         }
 	
         void close() {
