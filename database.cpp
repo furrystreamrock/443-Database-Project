@@ -28,6 +28,7 @@ class Database {
     std::string database_name;
 	
 	//stuff for the buffer
+	bool first;
 	int search_style;
 	const int min_buffer_depth = 2; 
 	int max_buff_depth = 5;
@@ -588,6 +589,7 @@ class Database {
 			SST_DIR = new SST_directory();
 			search_style = 0;
 			std::cout << "Database Initiazlied" << std::endl;
+			first = false;
 		}
 
         int get(int key, bool* found) 
@@ -614,6 +616,14 @@ class Database {
 		
         void put(int key, int val)
 		{
+			if(first)
+			{//exception to pattern to insert the first entry ever:
+				first = false;
+				kv_pair* a = new kv_pair(key, val);
+				insertIntoBuffer(SST_DIR->put(a));
+				delete(a);
+			}
+			std::cout << "Check 0" << std::endl;
 			//first make sure the target page is loaded
 			unsigned long target_key = SST_DIR->getInsertKey(key);
 			if(!getSST(target_key))
@@ -623,6 +633,7 @@ class Database {
 				insertIntoBuffer(load);
 				SST_DIR->update_sst_node(load);
 			}
+			std::cout << "Check 2" << std::endl;
 			kv_pair* a = new kv_pair(key, val);
 			if(SST* b = SST_DIR->put(a))
 			{//a new SST was made by the insertion, for now, just flush this new one to file and dont bother with it.
@@ -631,7 +642,7 @@ class Database {
 				free(b);
 			}//otherwise insertion was done into an non-full table so we dont need to do more here.
 			delete(a);
-			
+			std::cout << "Check 3" << std::endl;
 		}
             
 
