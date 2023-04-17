@@ -412,8 +412,10 @@ class Database {
 			{
 				if(head->sst->key == key)
 				{
-					lruUpdate(head);
-					head->clockbit = true;
+					if(evict_policy == 0)
+						lruUpdate(head);
+					else
+						head->clockbit = true;
 					/* node_dll* a = lru_head;//show LRU queue for debug
 					while(a)
 					{
@@ -595,35 +597,58 @@ class Database {
 			unsigned long pagekey = SST_DIR->getSSTKey(key, &sst_found, &in_buffer);
 			if(!sst_found)
 				return 0;
-			
+			SST* target;
 			if(!in_buffer)
-				fetch(pagekey);
+			{//retrieve the appropriate page and place in buffer, update the SST_directory to let it know new page in buffer.
+				target = (SST*)malloc(sizeof(SST));
+				memcpy(target, fetch(pagekey), sizeof(SST));
+				insertIntoBuffer(target);
+				SST_DIR->update_sst_node(target);
+			}
+			else
+				target = getSST(pagekey);
 			
-			SST* target = getSST(pagekey);
 			int result = bin_search(target, key, found);
 			return result;
         }
 		
         void put(int key, int val)
 		{
+			//first make sure the target page is loaded
+			unsigned long target_key = SST_DIR->getInsertKey(key);
+			if(!getSST(target_key))
+			{//the target sst is not in buffer, need to fetch.
+				SST* load = (SST*)malloc(sizeof(SST));
+				std::memcpy(load, fetch(target_key), sizeof(SST));
+				insertIntoBuffer(load);
+				SST_DIR->update_sst_node(load);
+			}
+			kv_pair* a = new kv_pair(key, val);
+			if(SST* b = SST_DIR->put(a))
+			{//a new SST was made by the insertion, for now, just flush this new one to file and dont bother with it.
+				flush(b);
+				free(b->data);
+				free(b);
+			}//otherwise insertion was done into an non-full table so we dont need to do more here.
+			delete(a);
+			
 		}
             
 
         void scan() 
-		{//TODO REimplment this using page directory!!
+		{//TODO REimplment this using page directory and buffer!!
             
         }
             
 		void testReadWrite()
 		{
-			std::cout << "begin" << std::endl;
+			std::cout << "Binary Read/Write check" << std::endl;
 			kv_pair* kv1 = new kv_pair(0, 0);
 			kv_pair* kv2 = new kv_pair(1 ,1);
 			kv_pair* kv3 = new kv_pair(2, 2);
 			kv_pair* kv4 = new kv_pair(3, 3);
 			kv_pair* kv5 = new kv_pair(4 ,4);
 			kv_pair* kv6 = new kv_pair(5, 5);
-			std::cout << "check 1" << std::endl;
 			SST* test = new SST();
 			test->data = (kv_pair*)malloc(MAX_ENTRIES*sizeof(kv_pair));
 			
@@ -633,8 +658,6 @@ class Database {
 			SST_DIR->sstInsert(test, kv4);
 			SST_DIR->sstInsert(test, kv5);
 			SST_DIR->sstInsert(test, kv6);
-			
-			std::cout << "check 2" << std::endl;
 			test->key= 100000;
 			std::cout <<"FLUSHING" << std::endl;
 			flush(test);

@@ -633,7 +633,28 @@ class SST_directory
 		void update_sst_node(SST* sst)
 		{//lets the directory know when a page has been loaded to buffer
 		//sets the SST's node pointer field to point to its addr in buffer
-		
+			SST_node* curr = root;
+			
+			while(true)
+			{
+				if(!curr->left)
+				{// we are at a leaf
+					if(sst->key == curr->sst_key)//out of range
+					{
+						curr->sst = sst;
+						return;
+					}
+					std::cout << "warning: sst not found" << std::endl;
+					return;
+				}
+				else
+				{
+					if(sst->minkey >= curr->split)
+						curr = curr->right;
+					else
+						curr = curr->left;
+				}
+			}
 		}
 		
 		void evicted(SST* sst)
