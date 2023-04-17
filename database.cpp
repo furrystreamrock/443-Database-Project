@@ -589,7 +589,7 @@ class Database {
 			SST_DIR = new SST_directory();
 			search_style = 0;
 			std::cout << "Database Initiazlied" << std::endl;
-			first = false;
+			first = true;
 		}
 
         int get(int key, bool* found) 
@@ -642,7 +642,15 @@ class Database {
 				free(b);
 			}//otherwise insertion was done into an non-full table so we dont need to do more here.
 			delete(a);
-			std::cout << "Check 3" << std::endl;
+			bool dog;
+			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
+			{
+				bucket_node* buk = buffer_directory[i];
+				while(buk->next)
+				{
+					print_sst(buk->sst);
+				}
+			}
 		}
             
 
@@ -713,23 +721,9 @@ class Database {
 			return 0;
         }
 	
-        void close() {
-
-            int buffer_empty = 1;
-            if (memtable->getEntries() >= 0){
-                //TODO: might be crashing here
-	            std::cout << "size "<< memtable->getEntries() << std::endl;
-                memtable->inOrderFlush(get_next_file_name().c_str());
-                buffer_empty = 0;
-            }
-
-            std::ofstream output(get_db_file_name(), std::ofstream::trunc);
-
-            output << num_files << "\n" << buffer_empty << "\n" ;
-
-            output.close();
-
-            delete memtable;
+        void close()
+		{
+ 
         }
 		
 		void TESTINGBUFFER(int eviction, int iterations, int maxdepth)

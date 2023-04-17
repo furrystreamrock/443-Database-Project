@@ -469,7 +469,7 @@ class SST_directory
 				root->min = kv->value;
 				root->max = kv->value;
 				root->entries++;
-				
+				std::cout<< "YEAY" << std::endl;
 				root->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				root->sst->data[0].key = kv->key;
 				root->sst->data[0].value = kv->value;
@@ -660,6 +660,27 @@ class SST_directory
 		void evicted(SST* sst)
 		{//lets the directory know when a page has been evicted from buffer
 		//sets the SST's node that pointed to it in buffer to now point to 'nullptr'
+			SST_node* curr = root;
+			while(true)
+			{
+				if(!curr->left)
+				{// we are at a leaf
+					if(sst->key == curr->sst_key)//out of range
+					{
+						curr->sst = nullptr;
+						return;
+					}
+					std::cout << "warning: sst not found" << std::endl;
+					return;
+				}
+				else
+				{
+					if(sst->minkey >= curr->split)
+						curr = curr->right;
+					else
+						curr = curr->left;
+				}
+			}
 		}
 		
 		
