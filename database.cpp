@@ -438,6 +438,7 @@ class Database {
 		SST* fetch(unsigned long key)
 		{//fetch the SST for from file, and put it into the buffer
 			std::string filename = std::to_string(key) + ".bin";
+			std::cout << filename << std::endl;
 			std::ifstream f(filename, std::ios::out | std::ios::binary);
 			if(!f.is_open())
 			{//if this happens, the db instance should exit instantly to preserve data pages
@@ -456,6 +457,8 @@ class Database {
 				f.read((char*)(&(sst->data[i].value)), sizeof(int));
 			}
 			f.close();
+			
+			std::cout << "Just fetched SST:  Key: " << sst->key << " Entries " << sst->entries << std::endl;
 			return sst;
 		}
 		
@@ -463,6 +466,7 @@ class Database {
 		{//flush SST to file, write it as a binary file: formatting specified in project document. Note** this does not clean up the memory for SST, just writes.
 			//write order: key, entries, min, max, data. All densely written
 			std::string filename = std::to_string(sst->key) + ".bin";
+			std::cout << filename << std::endl;
 			std::ofstream f(filename, std::ios::out | std::ios::binary);
 			if(!f.is_open())
 			{//if this happens, the db instance should exit instantly to preserve data pages
@@ -622,8 +626,8 @@ class Database {
 				kv_pair* a = new kv_pair(key, val);
 				insertIntoBuffer(SST_DIR->put(a));
 				delete(a);
+				return;
 			}
-			std::cout << "Check 0" << std::endl;
 			//first make sure the target page is loaded
 			unsigned long target_key = SST_DIR->getInsertKey(key);
 			if(!getSST(target_key))
@@ -633,7 +637,6 @@ class Database {
 				insertIntoBuffer(load);
 				SST_DIR->update_sst_node(load);
 			}
-			std::cout << "Check 2" << std::endl;
 			kv_pair* a = new kv_pair(key, val);
 			if(SST* b = SST_DIR->put(a))
 			{//a new SST was made by the insertion, for now, just flush this new one to file and dont bother with it.
@@ -649,6 +652,7 @@ class Database {
 				while(buk->next)
 				{
 					print_sst(buk->sst);
+					buk = buk->next;
 				}
 			}
 		}

@@ -10,9 +10,9 @@ int main()
 
 	db->open("bufferTestingDB");
 
-	std::cout << "buffer testing:" << std::endl;
+	/* std::cout << "buffer testing:" << std::endl;
 
-	/* //testing a thousand page insertions, at varying max buffer depth:
+	 //testing a thousand page insertions, at varying max buffer depth:
 	int depths[] = {2, 3, 4, 5, 6};
 	for(int i = 0; i < 5; i++)
 	{
@@ -21,15 +21,22 @@ int main()
 		auto finish = std::chrono::steady_clock::now();
 		
 		std::cout << i << " : " << std::chrono::duration_cast<std::chrono::duration<double> >(finish - start).count() << std::endl;
-	} */
+	} 
 	
 	db->TESTINGBUFFER(0, 1000, 5);
-	std::cout << "----------------------testing done------------------------" << std::endl;
-
+	std::cout << "----------------------testing done------------------------" << std::endl; */
+	
+	 srand(time(NULL));
+	db->testReadWrite();
+	for(int i = 0; i < 100; i++)
+	{
+		std::cout << "----------------------------------------------Put " << i << " -------------------------------------------------------" <<std::endl;
+		db->put(rand()%5000, rand()%5000);
+	}
+	
+	//SST_directory* sst_dir = new SST_directory();
 	
 	
-	
-	SST_directory* sst_dir = new SST_directory();
 	//sst_dir->testInsert(); //test tje insert functionality of page directory
 	
 	return 0;

@@ -432,7 +432,7 @@ static memtab* build_from_file(const char* filename)
 	
 };
 static const int SST_BYTES = 4096 - sizeof(SST) - 30; //just shy of 4kb per sst including metadata
-static const int MAX_ENTRIES = 2* (SST_BYTES/2) / sizeof(kv_pair);//make this number always even for convenience. 
+static const int MAX_ENTRIES = 50;//2 * (SST_BYTES/2) / sizeof(kv_pair);//make this number always even for convenience. 
 
 struct SST_node
 {
@@ -469,7 +469,6 @@ class SST_directory
 				root->min = kv->value;
 				root->max = kv->value;
 				root->entries++;
-				std::cout<< "YEAY" << std::endl;
 				root->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				root->sst->data[0].key = kv->key;
 				root->sst->data[0].value = kv->value;
@@ -500,11 +499,8 @@ class SST_directory
 			//leaf node, we insert into this SST
 			if(n->sst->entries < MAX_ENTRIES)
 			{
-				int i = n->sst->entries;
-				n->sst->data[i].key = kv->key;
-				n->sst->data[i].value = kv->value;
-				n->sst->entries++;
-				n->entries++;
+				sstInsert(n->sst, kv);
+				n->entries = n->sst->entries;
 				//update range of table if needed
 				if(kv->key > n->sst->maxkey)
 				{
@@ -577,6 +573,7 @@ class SST_directory
 		{
 			root = nullptr;
 		}
+		
 		void sstInsert(SST* sst, kv_pair* kv)
 		{//use binary search, insert the kv into the sst at the appropriate index in the SST's data field.
 			int top = sst->entries;//one end of the sst.
@@ -696,6 +693,7 @@ class SST_directory
 				{// we are at a leaf
 					if(key < curr->min || key > curr->max)//out of range
 					{
+						std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
 						*in_buffer = false;
 						return 0;
 					}
@@ -704,6 +702,7 @@ class SST_directory
 					else
 						*in_buffer;
 					*found = true;
+					std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
 					return curr->sst_key;
 				}
 				else
@@ -723,6 +722,7 @@ class SST_directory
 			{
 				if(!curr->left)
 				{// we are at a leaf
+					std::cout << "getInsertKey return value: " << curr->sst_key << std::endl;
 					return curr->sst_key;
 				}
 				else
@@ -762,7 +762,7 @@ class SST_directory
 			if(i != 50)
 			{
 				kv_pair* k;
-				k->key = i;
+				k->key = rand()%100;
 				k->value = i;
 				sstInsert(test, k);
 			}
@@ -772,8 +772,6 @@ class SST_directory
 		kv_pair* k5 = new kv_pair(99, 1000);
 
 		sstInsert(test, k4);
-		print_sst(test);
-		
 		sstInsert(test, k5);
 		print_sst(test);	
 	}
