@@ -453,7 +453,16 @@ class SST_directory
 	SST_node* root;
 	private:
 		
-		
+		void updateSSTNode(SST_node* n)
+		{//update the SST_node's information to the SST, if not nullptr
+			if(!n->sst)
+				return;
+			SST* t = n->sst;
+			n->sst_key = t->key;
+			n->entries = t->entries;
+			n->min = t->minkey;
+			n->max = t->maxkey;
+		}
 		
 		SST* insert(kv_pair* kv, SST_node* n)
 		{//will return nullptr if an existing SST was updated and no new tables made.
@@ -531,6 +540,7 @@ class SST_directory
 				std::memcpy(n->right->sst->data, temp + (MAX_ENTRIES/2)*sizeof(kv_pair), (MAX_ENTRIES/2)*sizeof(kv_pair));
 				n->right->sst->entries = MAX_ENTRIES/2;
 				sstInsert(n->right->sst, kv);
+				updateSSTNode(n->right);
 				
 				
 				n->left = new SST_node();
@@ -538,10 +548,10 @@ class SST_directory
 				n->left->sst_key = n->left->sst->key;
 				n->left->sst->maxkey = mid_key - 1;
 				n->left->sst->minkey = temp[0].key;
-				n->left->sst->entries = MAX_ENTRIES/2;
+				n->left->sst->entries = 0;
 				n->left->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				std::memcpy(n->left->sst->data, temp, (MAX_ENTRIES/2)*sizeof(kv_pair));
-				
+				updateSSTNode(n->left);
 			}
 			else
 			{
@@ -550,15 +560,16 @@ class SST_directory
 				n->left->sst->entries = MAX_ENTRIES/2;
 				std::memcpy(n->left->sst->data, temp , (MAX_ENTRIES/2)*sizeof(kv_pair));
 				sstInsert(n->left->sst, kv);
+				updateSSTNode(n->left);
 				
 				n->right = new SST_node();
 				n->right->sst = new SST();
-				n->right->sst_key = n->right->sst->key;
 				n->right->sst->minkey = mid_key;
 				n->right->sst->maxkey = temp[MAX_ENTRIES-1].key;
-				n->right->sst->entries = MAX_ENTRIES/2;
+				n->right->sst->entries = 0;
 				n->right->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				std::memcpy(n->right->sst->data, temp + (MAX_ENTRIES/2)*sizeof(kv_pair), (MAX_ENTRIES/2)*sizeof(kv_pair));
+				updateSSTNode(n->right);
 			}
 			free(temp);
 			n->sst = nullptr;

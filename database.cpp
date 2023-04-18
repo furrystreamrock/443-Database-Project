@@ -632,6 +632,7 @@ class Database {
 			unsigned long target_key = SST_DIR->getInsertKey(key);
 			if(!getSST(target_key))
 			{//the target sst is not in buffer, need to fetch.
+				std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAHH " << std::endl;
 				SST* load = (SST*)malloc(sizeof(SST));
 				std::memcpy(load, fetch(target_key), sizeof(SST));
 				insertIntoBuffer(load);
