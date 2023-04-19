@@ -432,7 +432,7 @@ static memtab* build_from_file(const char* filename)
 	
 };
 static const int SST_BYTES = 4096 - sizeof(SST) - 30; //just shy of 4kb per sst including metadata
-static const int MAX_ENTRIES = 4;//2 * (SST_BYTES/2) / sizeof(kv_pair);//make this number always even for convenience. 
+static const int MAX_ENTRIES = 10;//2 * (SST_BYTES/2) / sizeof(kv_pair);//make this number always even for convenience. 
 
 struct SST_node
 {
@@ -508,6 +508,7 @@ class SST_directory
 			//leaf node, we insert into this SST
 			if(n->sst->entries < MAX_ENTRIES)
 			{
+				std::cout << "Case 2" << std::endl;
 				sstInsert(n->sst, kv);
 				n->entries = n->sst->entries;
 				//update range of table if needed
@@ -524,6 +525,7 @@ class SST_directory
 				return nullptr;
 			}
 			//full, require to split the tree
+			std::cout << "Case 3" << std::endl;
 			int mid_key = n->sst->data[MAX_ENTRIES/2].key;
 			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 			std::memcpy(temp, n->sst->data, MAX_ENTRIES*sizeof(kv_pair));
@@ -537,7 +539,7 @@ class SST_directory
 			{
 				n->right->sst = n->sst;
 				n->right->sst->minkey = mid_key;
-				std::memcpy(n->right->sst->data, temp + (MAX_ENTRIES/2)*sizeof(kv_pair), (MAX_ENTRIES/2)*sizeof(kv_pair));
+				std::memcpy(n->right->sst->data, &temp[MAX_ENTRIES/2], (MAX_ENTRIES/2)*sizeof(kv_pair));
 				n->right->sst->entries = MAX_ENTRIES/2;
 				sstInsert(n->right->sst, kv);
 				updateSSTNode(n->right);
@@ -568,7 +570,7 @@ class SST_directory
 				n->right->sst->maxkey = temp[MAX_ENTRIES-1].key;
 				n->right->sst->entries = MAX_ENTRIES/2;
 				n->right->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
-				std::memcpy(n->right->sst->data, temp + (MAX_ENTRIES/2)*sizeof(kv_pair), (MAX_ENTRIES/2)*sizeof(kv_pair));
+				std::memcpy(n->right->sst->data, &temp[MAX_ENTRIES/2], (MAX_ENTRIES/2)*sizeof(kv_pair));
 				updateSSTNode(n->right);
 			}
 			free(temp);
@@ -628,6 +630,8 @@ class SST_directory
 			sst->data[top].key = kv->key;
 			sst->data[top].value = kv->value;
 			free(temp);
+			sst->minkey = sst->data[0].key;
+			sst->maxkey = sst->data[sst->entries-1].key;
 			sst->entries++;
 			return;
 		}
@@ -652,7 +656,7 @@ class SST_directory
 						curr->sst = sst;
 						return;
 					}
-					std::cout << "warning: sst not found" << std::endl;
+					std::cout << "warning: sst not found: " << sst->key << std::endl;
 					return;
 				}
 				else

@@ -633,21 +633,25 @@ class Database {
 			unsigned long target_key = SST_DIR->getInsertKey(key);
 			if(!getSST(target_key))
 			{//the target sst is not in buffer, need to fetch.
-				std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAHH " << std::endl;
 				SST* load = (SST*)malloc(sizeof(SST));
 				std::memcpy(load, fetch(target_key), sizeof(SST));
 				insertIntoBuffer(load);
 				SST_DIR->update_sst_node(load);
 			}
+			std::cout << "checkpoint 1" << std::endl;
 			kv_pair* a = new kv_pair(key, val);
-			if(SST* b = SST_DIR->put(a))
+			SST* b = SST_DIR->put(a);
+			std::cout << "checkpoint 1.2" << std::endl;
+			if(b)
 			{//a new SST was made by the insertion, for now, just flush this new one to file and dont bother with it.
 				flush(b);
 				free(b->data);
 				free(b);
 			}//otherwise insertion was done into an non-full table so we dont need to do more here.
+			std::cout << "checkpoint 1.5" << std::endl;
 			delete(a);
 			bool dog;
+			std::cout << "checkpoint 2" << std::endl;
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
 			{
 				bucket_node* buk = buffer_directory[i];

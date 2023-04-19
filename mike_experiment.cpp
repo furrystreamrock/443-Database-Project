@@ -29,11 +29,13 @@ int main()
 	srand(time(NULL));
 	int store;
 	//db->testReadWrite();
-	for(int i = 0; i < 10; i++)
+	for(int i = 0; i < 100; i++)
 	{
 		std::cout << "----------------------------------------------Put " << i << " -------------------------------------------------------" <<std::endl;
 		int k = rand()%5000+1;
-		db->put(k, rand()%5000);
+		int v = rand()%5000;
+		std::cout << "Inserting k\\v: " << k <<"\\" << v << std::endl; 
+		db->put(k, v);
 		if(i == 30)
 			store = k;
 	}
