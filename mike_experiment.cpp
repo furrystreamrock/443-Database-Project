@@ -29,19 +29,21 @@ int main()
 	int store;
 	//db->testReadWrite();
 	//return 0;
-	
+	auto begin = std::chrono::high_resolution_clock::now();
+
 	for(int i = 0; i < 300; i++)
 	{
-		std::cout << "----------------------------------------------Put " << i << " -------------------------------------------------------" <<std::endl;
+		//std::cout << "----------------------------------------------Put " << i << " -------------------------------------------------------" <<std::endl;
 		int k = rand()%5000+1;
 		int v = rand()%5000;
-		std::cout << "Inserting k\\v: " << k <<"\\" << v << std::endl; 
+		//std::cout << "Inserting k\\v: " << k <<"\\" << v << std::endl; 
 		db->put(k, v);
-		if(i == 30)
-			store = k;
 	}
+	
+	auto end = std::chrono::high_resolution_clock::now();
+	std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end-begin).count() << "ns" << std::endl;
 	bool found;
-	std::cout << "value at " << store << " is " << db->get(store, &found) << std::endl;
+	//std::cout << "value at " << store << " is " << db->get(store, &found) << std::endl;
 	//SST_directory* sst_dir = new SST_directory();
 	
 	

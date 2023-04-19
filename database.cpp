@@ -93,9 +93,9 @@ class Database {
 			curr_buffer_entries++;
 			unsigned long hash = bitHash(curr_buffer_depth, sst->key);
 			bucket_node* curr_head = buffer_directory[hash];
-			//std::cout << curr_buffer_depth << std::endl;
-			std::cout << "Buffer pages: " << curr_buffer_entries << std::endl;
-			std::cout << "Inserting SST: " << sst->key << " at hash: "<<  int(hash) << std::endl;
+			////std::cout << curr_buffer_depth << std::endl;
+			//std::cout << "Buffer pages: " << curr_buffer_entries << std::endl;
+			//std::cout << "Inserting SST: " << sst->key << " at hash: "<<  int(hash) << std::endl;
 			if(!curr_head)
 				return;
 			while(curr_head->next)
@@ -114,14 +114,14 @@ class Database {
 			{
 				lruUpdate(curr_head);
 				node_dll* a = lru_head;//show LRU queue for debug
-				std::cout << "LRU Queue: " << std::endl;
+				//std::cout << "LRU Queue: " << std::endl;
 				while(a)
 				{
-					std::cout << a->target->sst->key << "|";
-					//std::cout << bitHash(curr_buffer_depth, a->target->sst->key) << "|";
+					//std::cout << a->target->sst->key << "|";
+					////std::cout << bitHash(curr_buffer_depth, a->target->sst->key) << "|";
 					a = a->next;
 				}
-				std::cout << std::endl;
+				//std::cout << std::endl;
 			}
 			//clock
 			if(evict_policy == 1)
@@ -146,7 +146,7 @@ class Database {
 				}
 			}
 
-			printBuckets();
+			//printBuckets();
 			
 		}	
 		void evict()
@@ -181,11 +181,11 @@ class Database {
 			cleanBucket(lru_tail->target);//cleanup memory 
 			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
-			std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
+			//std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
 /* 			if(lru_tail->target->prev && lru_tail->target->prev->sst)
-				std::cout << "Prev: " << lru_tail->target->prev->sst->key << std::endl;
+				//std::cout << "Prev: " << lru_tail->target->prev->sst->key << std::endl;
 			if(lru_tail->target->next && lru_tail->target->next->sst)
-				std::cout << "Next: " << lru_tail->target->next->sst->key << std::endl;
+				//std::cout << "Next: " << lru_tail->target->next->sst->key << std::endl;
  */
 			delete(lru_tail);
 			lru_tail = temp;
@@ -199,13 +199,13 @@ class Database {
 			
 			if(target->lru_node)
 			{
-				std::cout << target->sst->key << std::endl;
+				//std::cout << target->sst->key << std::endl;
 				node_dll* n = (node_dll*) (target->lru_node);
-				std::cout << n->target->sst->key << std::endl;
+				//std::cout << n->target->sst->key << std::endl;
 				if(n->prev)
-					std::cout << n->prev->target->sst->key << std::endl;
+					//std::cout << n->prev->target->sst->key << std::endl;
 				if(n->next)
-					std::cout << n->next->target->sst->key << std::endl;
+					//std::cout << n->next->target->sst->key << std::endl;
 				//std::cin.get();
 				if(!n->prev)//n is the very first node
 					return;
@@ -233,7 +233,7 @@ class Database {
 		}
 		void clockEvict()
 		{
-			std::cout << "Clock Evicting " << clock_pointer->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, clock_pointer->target->sst->key) << std::endl;
+			//std::cout << "Clock Evicting " << clock_pointer->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, clock_pointer->target->sst->key) << std::endl;
 			if(!clock_pointer->target->prev)//first in the bucket.
 			{
 				buffer_directory[bitHash(curr_buffer_depth, clock_pointer->target->sst->key)] = clock_pointer->target->next;
@@ -244,10 +244,8 @@ class Database {
 				clock_pointer->target->prev->next = clock_pointer->target->next;
 				clock_pointer->target->next->prev = clock_pointer->target->prev;
 			}
-
 			//handle the clock circle queue
 			//at least 2 pages: 
-			std::cout << "Clock 2" << std::endl;
 			while(clock_pointer->target->clockbit)
 			{//move the hand foward, looking for first 0 bit 
 				clock_pointer->target->clockbit = false;
@@ -262,7 +260,7 @@ class Database {
 			cleanBucket(clock_pointer->target);//cleanup disk space
 			delete(clock_pointer);
 			clock_pointer = temp;
-			std::cout << "Clock 3" << std::endl;
+
 			
 		}
 		void cleanBucket(bucket_node * n)
@@ -273,7 +271,7 @@ class Database {
 		
 		void doubleBufferSize()
 		{
-			std::cout << "Doubling buffer capacity, new depth: " << curr_buffer_depth + 1 << std::endl;
+			//std::cout << "Doubling buffer capacity, new depth: " << curr_buffer_depth + 1 << std::endl;
 			if(curr_buffer_depth >= max_buff_depth)
 			{
 				std::cerr << "Warning, can't double buffer size" << std::endl;
@@ -299,7 +297,7 @@ class Database {
 						break;
 					if(curr->sst)
 					{
-						std::cout << "Re-inserting SST: " << curr->sst->key << std::endl;
+						//std::cout << "Re-inserting SST: " << curr->sst->key << std::endl;
 						reinsertBucket(curr, new_buffer_directory);
 					}
 					else
@@ -313,7 +311,7 @@ class Database {
 		
 		void halveBufferSize()
 		{
-			std::cout << "Halving buffer capacity, new depth: " << curr_buffer_depth - 1 << std::endl;
+			//std::cout << "Halving buffer capacity, new depth: " << curr_buffer_depth - 1 << std::endl;
 			if(curr_buffer_depth <= min_buffer_depth)
 			{
 				std::cerr << "Warning, can't double buffer size" << std::endl;
@@ -339,7 +337,7 @@ class Database {
 						break;
 					if(curr->sst)
 					{
-						std::cout << "Re-inserting SST: " << curr->sst->key << std::endl;
+						//std::cout << "Re-inserting SST: " << curr->sst->key << std::endl;
 						reinsertBucket(curr, new_buffer_directory);
 					}
 					else
@@ -381,6 +379,7 @@ class Database {
 		
 		void printBuckets()
 		{
+			return;
 			std::cout << "------------------------------------------" << std::endl;
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
 			{	
@@ -414,11 +413,11 @@ class Database {
 					/* node_dll* a = lru_head;//show LRU queue for debug
 					while(a)
 					{
-						std::cout << a->target->sst->key << "|";
-						//std::cout << bitHash(curr_buffer_depth, a->target->sst->key) << "|";
+						//std::cout << a->target->sst->key << "|";
+						////std::cout << bitHash(curr_buffer_depth, a->target->sst->key) << "|";
 						a = a->next;
 					}
-					std::cout << std::endl; */
+					//std::cout << std::endl; */
 					
 					return head->sst;
 				}
@@ -432,7 +431,7 @@ class Database {
 		SST* fetch(unsigned long key)
 		{//fetch the SST for from file, and put it into the buffer
 			std::string filename = std::to_string(key) + ".bin";
-			std::cout << "fetching: " <<  filename << std::endl;
+			//std::cout << "fetching: " <<  filename << std::endl;
 			std::ifstream f(filename, std::ios::out | std::ios::binary);
 			if(!f.is_open())
 			{//if this happens, the db instance should exit instantly to preserve data pages
@@ -445,7 +444,6 @@ class Database {
 			f.read((char *)&(sst->entries), sizeof(int));
 			f.read((char *)&(sst->minkey), sizeof(int));
 			f.read((char *)&(sst->maxkey), sizeof(int));
-			
 			for(int i = 0 ; i < sst->entries; i++)
 			{
 				f.read((char*)(&(sst->data[i].key)), sizeof(int));
@@ -453,7 +451,7 @@ class Database {
 			}
 			f.close();
 			
-			std::cout << "Just fetched SST:  Key: " << sst->key << " Entries " << sst->entries << std::endl;
+			//std::cout << "Just fetched SST:  Key: " << sst->key << " Entries " << sst->entries << std::endl;
 			return sst;
 		}
 		
@@ -461,7 +459,7 @@ class Database {
 		{//flush SST to file, write it as a binary file: formatting specified in project document. Note** this does not clean up the memory for SST, just writes.
 			//write order: key, entries, min, max, data. All densely written
 			std::string filename = std::to_string(sst->key) + ".bin";
-			std::cout << "flushing: " <<filename << std::endl;
+			//std::cout << "flushing: " <<filename << std::endl;
 			std::ofstream f(filename, std::ios::out | std::ios::binary);
 			if(!f.is_open())
 			{//if this happens, the db instance should exit instantly to preserve data pages
@@ -557,7 +555,7 @@ class Database {
             int num_lines = std::count(std::istreambuf_iterator<char>(f), 
                 std::istreambuf_iterator<char>(), '\n');
 
-            std::cout << "Building sst: "<< filename << ", size " << num_lines << std::endl;
+            //std::cout << "Building sst: "<< filename << ", size " << num_lines << std::endl;
 
             kv_pair* pairs = (kv_pair*)( malloc(sizeof(kv_pair) * num_lines) );
             f.clear();
@@ -587,7 +585,7 @@ class Database {
 			initializeBuffer();
 			SST_DIR = new SST_directory();
 			search_style = 0;
-			std::cout << "Database Initiazlied" << std::endl;
+			//std::cout << "Database Initiazlied" << std::endl;
 			first = true;
 			put(0, 0);//key 0 reserved for special function in this DB. use >  positive keys only.
 		}
@@ -633,28 +631,28 @@ class Database {
 				insertIntoBuffer(load);
 				SST_DIR->update_sst_node(load);
 			}
-			std::cout << "checkpoint 1" << std::endl;
+			//std::cout << "checkpoint 1" << std::endl;
 			kv_pair* a = new kv_pair(key, val);
 			SST* b = SST_DIR->put(a);
-			std::cout << "checkpoint 1.2" << std::endl;
+			//std::cout << "checkpoint 1.2" << std::endl;
 			if(b)
 			{//a new SST was made by the insertion, for now, just flush this new one to file and dont bother with it.
 				flush(b);
-				std::cout << "checkpoint 1.3" << std::endl; 
+				//std::cout << "checkpoint 1.3" << std::endl; 
 				free(b->data);
 				free(b);
-				std::cout << "checkpoint 1.4" << std::endl;
+				//std::cout << "checkpoint 1.4" << std::endl;
 			}//otherwise insertion was done into an non-full table so we dont need to do more here.
-			std::cout << "checkpoint 1.5" << std::endl;
+			//std::cout << "checkpoint 1.5" << std::endl;
 			delete(a);
 			bool dog;
-			std::cout << "checkpoint 2" << std::endl;
+			//std::cout << "checkpoint 2" << std::endl;
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
 			{
 				bucket_node* buk = buffer_directory[i];
 				while(buk->next)
 				{
-					print_sst(buk->sst);
+					//print_sst(buk->sst);
 					buk = buk->next;
 				}
 			}
@@ -668,7 +666,7 @@ class Database {
             
 		void testReadWrite()
 		{
-			std::cout << "Binary Read/Write check" << std::endl;
+			//std::cout << "Binary Read/Write check" << std::endl;
 			kv_pair* kv1 = new kv_pair(0, 0);
 			kv_pair* kv2 = new kv_pair(1 ,1);
 			kv_pair* kv3 = new kv_pair(2, 2);
@@ -685,9 +683,9 @@ class Database {
 			SST_DIR->sstInsert(test, kv5);
 			SST_DIR->sstInsert(test, kv6);
 			test->key= 100000;
-			std::cout <<"FLUSHING" << std::endl;
+			//std::cout <<"FLUSHING" << std::endl;
 			flush(test);
-			std::cout << "FETCHING" << std::endl;
+			//std::cout << "FETCHING" << std::endl;
 			SST* test_result = fetch(test->key);
 			print_sst(test_result);
 			
@@ -700,7 +698,7 @@ class Database {
 	        if(!f.is_open()) {
                 
             } else {
-                std::cout << "Deleting all. " << std::endl;
+                //std::cout << "Deleting all. " << std::endl;
                 //load the db
                 std::string temp;
                 std::getline(f, temp);
@@ -743,14 +741,14 @@ class Database {
 			for(int i = 0; i < iterations; i++)
 			{
 				SST* tab0 = new SST();
-				std::cout<< "Created table :" << tab0->key << std::endl;
+				//std::cout<< "Created table :" << tab0->key << std::endl;
 				tab0->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				for(int j = 0; j < 10; j++)
 				{
 					tab0->data[j].key = i*100+j;
 					tab0->data[j].value = i*100+j;
 				}
-				std::cout << "----------------------INSERTING: " << i << "----------------------" << std::endl;		
+				//std::cout << "----------------------INSERTING: " << i << "----------------------" << std::endl;		
 				insertIntoBuffer(tab0);
 				free(tab0->data);
 				
@@ -767,19 +765,19 @@ class Database {
 				
 			}
 			
-			std::cout << "Finished " << iterations << " insertions" << std::endl;
+			//std::cout << "Finished " << iterations << " insertions" << std::endl;
 
 			SST* getResult =  getSST(test_key);
 			
 			if(!getResult)
 			{
-				std::cout << "test_key SST was evicted" << std::endl;
+				//std::cout << "test_key SST was evicted" << std::endl;
 				return;
 			}
-			std::cout << "Testing to retrieve table: " << getResult->key << std::endl;
+			//std::cout << "Testing to retrieve table: " << getResult->key << std::endl;
 			for(int i = 0; i < 10; i++)
 			{
-				std::cout << getResult->data[i].value << std::endl;
+				//std::cout << getResult->data[i].value << std::endl;
 			}
 		}
 };

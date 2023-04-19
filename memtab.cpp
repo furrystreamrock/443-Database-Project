@@ -27,7 +27,8 @@ struct list_node
 */
 static void print_sst(SST* sst)
 {
-	std::cout << "-----------------------------------SST print start : " << sst->key << "  ----------------------------------------------" << std::endl;
+	return;
+	./std::cout << "-----------------------------------SST print start : " << sst->key << "  ----------------------------------------------" << std::endl;
 	for(int i = 0; i < sst->entries; i++)
 		std::cout << "Key: " << sst->data[i].key << " Value: " << sst->data[i].value <<  std::endl; 
 }
@@ -189,7 +190,7 @@ class memtab
 			if (n) 
 			{
 				inOrderTraversal(n->left);
-				std::cout << n->key << " " << n ->value <<std::endl;
+				//std::cout << n->key << " " << n ->value <<std::endl;
 				inOrderTraversal(n->right);
 			}
 		}
@@ -234,7 +235,6 @@ class memtab
 			*/
 			if(!n)
 				return nullptr;
-			//std::cout << n->key << "  " << n->value << std::endl;
 			if(n->key == key)
 				return n;
 			
@@ -250,7 +250,6 @@ class memtab
 		unsigned long key;//used for hashing 
 		bool isFull()
 		{
-			//std::cout << entries << "/" << memtable_size << std::endl;
 			return !(entries < memtable_size);
 		}
 		
@@ -285,7 +284,6 @@ class memtab
 			
 			root = insert(root, key, value);
 			this->entries++;
-			//std::cout << "Inserted: " << key << " " << value << std::endl; 
 			return 0;
 		}
 		  
@@ -295,7 +293,7 @@ class memtab
 			For debugging: print tree in order of keys
 			*/
 			inOrderTraversal(root);
-			std::cout << std::endl;
+			//std::cout << std::endl;
 		}
 		
 		void inOrderFlush(const char* filename)
@@ -309,7 +307,7 @@ class memtab
 			...
 			*/
 			list_node* a = treeToBuffer(root);
-			std::cout << "flush start, total length: " << a->length << std::endl;
+			//std::cout << "flush start, total length: " << a->length << std::endl;
 			
 			int buf_len = a->length*2;
 			int* buf = (int*)malloc(buf_len * sizeof(int));
@@ -321,7 +319,6 @@ class memtab
 				std::string bleh = "false";
 				//if (a->next)
 				//	bleh = "true";
-				//std::cout << a->key << "     " << bleh << std::endl;//use for testing
 				a = a->next;
 				count++;
 			}
@@ -419,13 +416,10 @@ static memtab* build_from_file(const char* filename)
 	}
 	std::string key, val;
 	
-	std::cout << "Begin build "<< filename << std::endl;
+	//std::cout << "Begin build "<< filename << std::endl;
 	while(std::getline(f, key, ','))
 	{
-		//std::cout << "key: " << key;
-		std::getline(f, val);
-		//std::cout << "Val: " << val << std::endl; 
-		
+		std::getline(f, val);		
 		table->insert(stoi(key), stoi(val));
 	}
 	return table;
@@ -444,7 +438,7 @@ struct SST_node
 	int split;
 	SST_node* left;
 	SST_node* right;
-	SST_node(): sst(nullptr), left(nullptr), right(nullptr), split(0), sst_key(0), min(0), max(0) {}	
+	SST_node(): sst(nullptr), left(nullptr), right(nullptr), split(0), sst_key(0), min(0), max(0), entries(0){}	
 };
 
 
@@ -509,15 +503,15 @@ class SST_directory
 			//leaf node, we insert into this SST
 			if(n->sst->entries < MAX_ENTRIES)
 			{
-				std::cout << "Case 2" << std::endl;
+				//std::cout << "Case 2" << std::endl;
 				sstInsert(n->sst, kv);
-				std::cout << "Case 2.1" << std::endl;
+				//std::cout << "Case 2.1" << std::endl;
 				updateSSTNode(n);
-				std::cout << "Case 2.2" << std::endl;
+				//std::cout << "Case 2.2" << std::endl;
 				return nullptr;
 			}
 			//full, require to split the tree
-			std::cout << "Case 3" << std::endl;
+			//std::cout << "Case 3" << std::endl;
 			int mid_key = n->sst->data[MAX_ENTRIES/2].key;
 			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 			std::memcpy(temp, n->sst->data, MAX_ENTRIES*sizeof(kv_pair));
@@ -599,13 +593,13 @@ class SST_directory
 		
 			if(sst->data[top].key == kv->key)//can treat this as update if key already in SST, although this is unintended, print warning
 			{
-				std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
+				//std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
 				sst->data[top].value = kv->value;
 				return;
 			}
 			if(sst->data[bottom].key == kv->key)
 			{
-				std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
+				//std::cout << "WARNING: inserted KV pair that was already in SST! Handling as update instead. key: " << kv->key << " SST: " << sst->key << std::endl;
 				sst->data[bottom].value = kv->value;
 				return;
 			}
@@ -617,7 +611,6 @@ class SST_directory
 				return;
 			}
 			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
-			//std::cout << "ADDR : " << temp << std::endl;
 			std::memcpy(temp, sst->data, MAX_ENTRIES*sizeof(kv_pair));
 			if(top < MAX_ENTRIES - 1)
 				std::memcpy(&(sst->data[top+1]), &(temp[top]), MAX_ENTRIES*sizeof(kv_pair) - top*sizeof(kv_pair));
@@ -626,7 +619,6 @@ class SST_directory
 			sst->minkey = sst->data[0].key;
 			sst->maxkey = sst->data[sst->entries-1].key;
 			sst->entries++;
-			//std::cout << "ADDR : " << temp << std::endl;
 			//free(temp); //somehow... even though the address for malloc is identical, free segfaults?????????? we will do experiments with memory leak then.
 			return;
 		}
@@ -651,7 +643,7 @@ class SST_directory
 						curr->sst = sst;
 						return;
 					}
-					std::cout << "warning: sst not found: " << sst->key << std::endl;
+					//std::cout << "warning: sst not found: " << sst->key << std::endl;
 					return;
 				}
 				else
@@ -677,7 +669,7 @@ class SST_directory
 						curr->sst = nullptr;
 						return;
 					}
-					std::cout << "warning: sst not found" << std::endl;
+					//std::cout << "warning: sst not found" << std::endl;
 					return;
 				}
 				else
@@ -703,7 +695,7 @@ class SST_directory
 				{// we are at a leaf
 					if(key < curr->min || key > curr->max)//out of range
 					{
-						std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
+						//std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
 						*in_buffer = false;
 						return 0;
 					}
@@ -712,7 +704,7 @@ class SST_directory
 					else
 						*in_buffer;
 					*found = true;
-					std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
+					//std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
 					return curr->sst_key;
 				}
 				else
@@ -732,7 +724,7 @@ class SST_directory
 			{
 				if(!curr->left)
 				{// we are at a leaf
-					std::cout << "getInsertKey return value: " << curr->sst_key << std::endl;
+					//std::cout << "getInsertKey return value: " << curr->sst_key << std::endl;
 					return curr->sst_key;
 				}
 				else
@@ -786,48 +778,3 @@ class SST_directory
 		print_sst(test);	
 	}
 };
-
-//for testing the tree
-/*
-int main() {
-    memtab tab0(6);
-    tab0.insert(1, 881);
-    tab0.insert(4, 882);
-    tab0.insert(2, 883);
-    tab0.insert(3, 884);
-    tab0.insert(5, 885);
-    tab0.insert(6, 886);
-
-    std::cout << "In order traversal of key/value:" << std::endl;
-    tab0.printInorder();
-	//tab0.inOrderFlush("yay.txt");
-	
-	
-	std::cout << "Search for key 5:" << std::endl;
-	bool a = false;
-	int b;
-	a = tab0.get(3, &b);
-	std::cout << a << std::endl;
-	std::cout << b << std::endl;
-	
-	std::cout << "scan start" << std::endl;
-	list_node* s;
-	if(tab0.scan(2,4, &s))
-	{
-		while(s)
-		{
-			std::cout << s->key << "," << s->value << "|";
-			s = s->next;
-		}
-		std::cout<<std::endl;
-	}
-	memtab* built = build_from_file("yay.txt");
-	built->printInorder();
-	built->deleteAll();
-	(*built).printInorder();
-	
-	
-	
-    return 0;
-}
-*/
