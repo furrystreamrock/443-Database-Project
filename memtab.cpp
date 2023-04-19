@@ -28,7 +28,7 @@ struct list_node
 static void print_sst(SST* sst)
 {
 	return;
-	./std::cout << "-----------------------------------SST print start : " << sst->key << "  ----------------------------------------------" << std::endl;
+	std::cout << "-----------------------------------SST print start : " << sst->key << "  ----------------------------------------------" << std::endl;
 	for(int i = 0; i < sst->entries; i++)
 		std::cout << "Key: " << sst->data[i].key << " Value: " << sst->data[i].value <<  std::endl; 
 }
@@ -503,15 +503,11 @@ class SST_directory
 			//leaf node, we insert into this SST
 			if(n->sst->entries < MAX_ENTRIES)
 			{
-				//std::cout << "Case 2" << std::endl;
 				sstInsert(n->sst, kv);
-				//std::cout << "Case 2.1" << std::endl;
 				updateSSTNode(n);
-				//std::cout << "Case 2.2" << std::endl;
 				return nullptr;
 			}
 			//full, require to split the tree
-			//std::cout << "Case 3" << std::endl;
 			int mid_key = n->sst->data[MAX_ENTRIES/2].key;
 			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 			std::memcpy(temp, n->sst->data, MAX_ENTRIES*sizeof(kv_pair));
@@ -695,7 +691,7 @@ class SST_directory
 				{// we are at a leaf
 					if(key < curr->min || key > curr->max)//out of range
 					{
-						//std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
+						////std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
 						*in_buffer = false;
 						return 0;
 					}
@@ -704,7 +700,7 @@ class SST_directory
 					else
 						*in_buffer;
 					*found = true;
-					//std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
+					////std::cout << "getSSTKey return value: " << curr->sst_key << std::endl;
 					return curr->sst_key;
 				}
 				else
@@ -724,7 +720,7 @@ class SST_directory
 			{
 				if(!curr->left)
 				{// we are at a leaf
-					//std::cout << "getInsertKey return value: " << curr->sst_key << std::endl;
+					////std::cout << "getInsertKey return value: " << curr->sst_key << std::endl;
 					return curr->sst_key;
 				}
 				else

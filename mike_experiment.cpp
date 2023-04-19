@@ -6,43 +6,37 @@
 int main() 
 {
 	Database* db = new Database(MAX_ENTRIES);
-
 	db->open("bufferTestingDB");
-
-	/* std::cout << "buffer testing:" << std::endl;
-
-	 //testing a thousand page insertions, at varying max buffer depth:
-	int depths[] = {2, 3, 4, 5, 6};
-	for(int i = 0; i < 5; i++)
-	{
-		auto start = std::chrono::steady_clock::now();
-		db->TESTINGBUFFER(0, depths[i]);
-		auto finish = std::chrono::steady_clock::now();
-		
-		std::cout << i << " : " << std::chrono::duration_cast<std::chrono::duration<double> >(finish - start).count() << std::endl;
-	} 
-	
-	db->TESTINGBUFFER(0, 1000, 5);
-	std::cout << "----------------------testing done------------------------" << std::endl; */
-	
 	srand(time(NULL));
-	int store;
-	//db->testReadWrite();
-	//return 0;
+	
+	
+	//control which experiment to run: 0 for random page accesses, 1 for sequential page accesses.
+	int experiment = 1;
+	db->setEviction(1);//set the eviction policy; 0 for LRU, 1 for Clock.
+	
+	
 	auto begin = std::chrono::high_resolution_clock::now();
+	if(experiment == 0)
+		for(int i = 0; i < 10000; i++)
+		{
+			//std::cout << "----------------------------------------------Put " << i << " -------------------------------------------------------" <<std::endl;
+			int k = rand()%10000+1;
+			int v = rand()%10000;
+			//std::cout << "Inserting k\\v: " << k <<"\\" << v << std::endl; 
+			db->put(k, v);
+		}
+	else
+		for(int i = 0; i < 10000; i++)
+		{
+			//std::cout << "----------------------------------------------Put " << i << " -------------------------------------------------------" <<std::endl;
 
-	for(int i = 0; i < 300; i++)
-	{
-		//std::cout << "----------------------------------------------Put " << i << " -------------------------------------------------------" <<std::endl;
-		int k = rand()%5000+1;
-		int v = rand()%5000;
-		//std::cout << "Inserting k\\v: " << k <<"\\" << v << std::endl; 
-		db->put(k, v);
-	}
+			//std::cout << "Inserting k\\v: " << k <<"\\" << v << std::endl; 
+			db->put(i, i);
+		}
 	
 	auto end = std::chrono::high_resolution_clock::now();
 	std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end-begin).count() << "ns" << std::endl;
-	bool found;
+
 	//std::cout << "value at " << store << " is " << db->get(store, &found) << std::endl;
 	//SST_directory* sst_dir = new SST_directory();
 	

@@ -61,15 +61,17 @@ class Database {
         }
 //----------------------------------buffer methods begin-----------------------------------------------
 		void initializeBuffer()
-		{
+		{//initialize buffer hyperparameters and allocate memory:
+		//evict_policy: 1 for clock, 0 for LRU
+		//buffer depth minimum is set to 2, maximum may be set under max_buff_depth parameter.
 			buffer_directory = (bucket_node**)(malloc(pow(2,min_buffer_depth) * sizeof(bucket_node*)));
 			curr_buffer_depth = min_buffer_depth;
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
 			{//assign memory for the initial buffer buckets
 				buffer_directory[i] = new bucket_node();
-			}
 			curr_buffer_entries = 0;
-			evict_policy = 1;
+			}
+			evict_policy = 0;
 			lru_head = nullptr;
 			lru_tail = nullptr;
 			clock_pointer = nullptr;
@@ -108,20 +110,12 @@ class Database {
 			curr_head->next = new bucket_node();
 			curr_head->next->prev = curr_head;
 			
-
+			//printBuckets();
 			//LRU
 			if(evict_policy == 0)
 			{
 				lruUpdate(curr_head);
-				node_dll* a = lru_head;//show LRU queue for debug
-				//std::cout << "LRU Queue: " << std::endl;
-				while(a)
-				{
-					//std::cout << a->target->sst->key << "|";
-					////std::cout << bitHash(curr_buffer_depth, a->target->sst->key) << "|";
-					a = a->next;
-				}
-				//std::cout << std::endl;
+				
 			}
 			//clock
 			if(evict_policy == 1)
@@ -146,14 +140,13 @@ class Database {
 				}
 			}
 
-			//printBuckets();
 			
 		}	
 		void evict()
 		{//policy dependant
 			if(curr_buffer_entries-1 <= pow(2, curr_buffer_depth) *0.3)//less than 30% full after evicting this page
 				halveBufferSize();
-				
+			
 			if(evict_policy == 0)
 				lruEvict();
 			if(evict_policy == 1)
@@ -164,10 +157,11 @@ class Database {
 		
 		void lruEvict()
 		{//remove the tail of lru, should free all associated memory in that page as well
+			//std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
 			if(!lru_tail)
 				std::cerr << "Warning! tried to evict in empty buffer." << std::endl;
 			
-			if(!lru_tail->target->prev)//first in the bucket.
+			if(!(lru_tail->target->prev))//first in the bucket.
 			{
 				buffer_directory[bitHash(curr_buffer_depth, lru_tail->target->sst->key)] = lru_tail->target->next;
 				lru_tail->target->next->prev = nullptr;
@@ -177,20 +171,19 @@ class Database {
 				lru_tail->target->prev->next = lru_tail->target->next;
 				lru_tail->target->next->prev = lru_tail->target->prev;
 			}
+
 			flush(lru_tail->target->sst);//write sst to file
 			cleanBucket(lru_tail->target);//cleanup memory 
+			
 			delete(lru_tail->target);
 			node_dll* temp = lru_tail->prev;
-			//std::cout << "LRU Evicting " << lru_tail->target->sst->key << " in bucket: " << bitHash(curr_buffer_depth, lru_tail->target->sst->key) << std::endl;
-/* 			if(lru_tail->target->prev && lru_tail->target->prev->sst)
-				//std::cout << "Prev: " << lru_tail->target->prev->sst->key << std::endl;
-			if(lru_tail->target->next && lru_tail->target->next->sst)
-				//std::cout << "Next: " << lru_tail->target->next->sst->key << std::endl;
- */
+			
+
 			delete(lru_tail);
 			lru_tail = temp;
 			if(lru_tail)
 				lru_tail->next = nullptr;
+
 			
 		}
 		void lruUpdate(bucket_node* target)
@@ -199,14 +192,7 @@ class Database {
 			
 			if(target->lru_node)
 			{
-				//std::cout << target->sst->key << std::endl;
 				node_dll* n = (node_dll*) (target->lru_node);
-				//std::cout << n->target->sst->key << std::endl;
-				if(n->prev)
-					//std::cout << n->prev->target->sst->key << std::endl;
-				if(n->next)
-					//std::cout << n->next->target->sst->key << std::endl;
-				//std::cin.get();
 				if(!n->prev)//n is the very first node
 					return;
 					
@@ -379,7 +365,6 @@ class Database {
 		
 		void printBuckets()
 		{
-			return;
 			std::cout << "------------------------------------------" << std::endl;
 			for(int i = 0; i < pow(2, curr_buffer_depth); i++)
 			{	
@@ -589,7 +574,10 @@ class Database {
 			first = true;
 			put(0, 0);//key 0 reserved for special function in this DB. use >  positive keys only.
 		}
-
+		void setEviction(int eviction)
+		{
+			evict_policy = eviction;
+		}
         int get(int key, bool* found) 
 		{
 			bool sst_found;
