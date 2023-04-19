@@ -594,6 +594,7 @@ class Database {
 			search_style = 0;
 			std::cout << "Database Initiazlied" << std::endl;
 			first = true;
+			put(0, 0);//key 0 reserved for special function in this DB. use >  positive keys only.
 		}
 
         int get(int key, bool* found) 

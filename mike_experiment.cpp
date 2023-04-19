@@ -26,14 +26,19 @@ int main()
 	db->TESTINGBUFFER(0, 1000, 5);
 	std::cout << "----------------------testing done------------------------" << std::endl; */
 	
-	 srand(time(NULL));
-	db->testReadWrite();
-	for(int i = 0; i < 100; i++)
+	srand(time(NULL));
+	int store;
+	//db->testReadWrite();
+	for(int i = 0; i < 10; i++)
 	{
 		std::cout << "----------------------------------------------Put " << i << " -------------------------------------------------------" <<std::endl;
-		db->put(rand()%5000, rand()%5000);
+		int k = rand()%5000+1;
+		db->put(k, rand()%5000);
+		if(i == 30)
+			store = k;
 	}
-	
+	bool found;
+	std::cout << "value at " << store << " is " << db->get(store, &found) << std::endl;
 	//SST_directory* sst_dir = new SST_directory();
 	
 	

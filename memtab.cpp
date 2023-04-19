@@ -432,7 +432,7 @@ static memtab* build_from_file(const char* filename)
 	
 };
 static const int SST_BYTES = 4096 - sizeof(SST) - 30; //just shy of 4kb per sst including metadata
-static const int MAX_ENTRIES = 50;//2 * (SST_BYTES/2) / sizeof(kv_pair);//make this number always even for convenience. 
+static const int MAX_ENTRIES = 4;//2 * (SST_BYTES/2) / sizeof(kv_pair);//make this number always even for convenience. 
 
 struct SST_node
 {
@@ -548,7 +548,7 @@ class SST_directory
 				n->left->sst_key = n->left->sst->key;
 				n->left->sst->maxkey = mid_key - 1;
 				n->left->sst->minkey = temp[0].key;
-				n->left->sst->entries = 0;
+				n->left->sst->entries = MAX_ENTRIES/2;
 				n->left->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				std::memcpy(n->left->sst->data, temp, (MAX_ENTRIES/2)*sizeof(kv_pair));
 				updateSSTNode(n->left);
@@ -566,7 +566,7 @@ class SST_directory
 				n->right->sst = new SST();
 				n->right->sst->minkey = mid_key;
 				n->right->sst->maxkey = temp[MAX_ENTRIES-1].key;
-				n->right->sst->entries = 0;
+				n->right->sst->entries = MAX_ENTRIES/2;
 				n->right->sst->data = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 				std::memcpy(n->right->sst->data, temp + (MAX_ENTRIES/2)*sizeof(kv_pair), (MAX_ENTRIES/2)*sizeof(kv_pair));
 				updateSSTNode(n->right);
@@ -624,7 +624,7 @@ class SST_directory
 			
 			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
 			std::memcpy(temp, sst->data, MAX_ENTRIES*sizeof(kv_pair));
-			std::memcpy(&(sst->data[top+1]), &(temp[top]), MAX_ENTRIES - top - (int)(sizeof(kv_pair)));
+			std::memcpy(&(sst->data[top+1]), &(temp[top]), MAX_ENTRIES*sizeof(kv_pair) - top*sizeof(kv_pair));
 			sst->data[top].key = kv->key;
 			sst->data[top].value = kv->value;
 			free(temp);
