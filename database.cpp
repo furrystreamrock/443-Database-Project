@@ -31,7 +31,7 @@ class Database {
 	bool first;
 	int search_style;
 	const int min_buffer_depth = 2; 
-	int max_buff_depth = 5;
+	int max_buff_depth = 4;
 	int curr_buffer_depth;
 	int curr_buffer_entries;
 	int evict_policy; //NOTE TO SELF######: assign policies to ints. (0 is lru, 1 is clock, etc)
@@ -244,16 +244,10 @@ class Database {
 				clock_pointer->target->prev->next = clock_pointer->target->next;
 				clock_pointer->target->next->prev = clock_pointer->target->prev;
 			}
-			
+
 			//handle the clock circle queue
-			if(clock_pointer->next = clock_pointer)//for some reason we are evicting the only single page in buffer?? ok
-			{
-				cleanBucket(clock_pointer->target);
-				delete(clock_pointer);
-				clock_pointer = nullptr;
-				return;
-			}
 			//at least 2 pages: 
+			std::cout << "Clock 2" << std::endl;
 			while(clock_pointer->target->clockbit)
 			{//move the hand foward, looking for first 0 bit 
 				clock_pointer->target->clockbit = false;
@@ -268,7 +262,7 @@ class Database {
 			cleanBucket(clock_pointer->target);//cleanup disk space
 			delete(clock_pointer);
 			clock_pointer = temp;
-
+			std::cout << "Clock 3" << std::endl;
 			
 		}
 		void cleanBucket(bucket_node * n)
@@ -438,7 +432,7 @@ class Database {
 		SST* fetch(unsigned long key)
 		{//fetch the SST for from file, and put it into the buffer
 			std::string filename = std::to_string(key) + ".bin";
-			std::cout << filename << std::endl;
+			std::cout << "fetching: " <<  filename << std::endl;
 			std::ifstream f(filename, std::ios::out | std::ios::binary);
 			if(!f.is_open())
 			{//if this happens, the db instance should exit instantly to preserve data pages
@@ -451,6 +445,7 @@ class Database {
 			f.read((char *)&(sst->entries), sizeof(int));
 			f.read((char *)&(sst->minkey), sizeof(int));
 			f.read((char *)&(sst->maxkey), sizeof(int));
+			
 			for(int i = 0 ; i < sst->entries; i++)
 			{
 				f.read((char*)(&(sst->data[i].key)), sizeof(int));
@@ -466,7 +461,7 @@ class Database {
 		{//flush SST to file, write it as a binary file: formatting specified in project document. Note** this does not clean up the memory for SST, just writes.
 			//write order: key, entries, min, max, data. All densely written
 			std::string filename = std::to_string(sst->key) + ".bin";
-			std::cout << filename << std::endl;
+			std::cout << "flushing: " <<filename << std::endl;
 			std::ofstream f(filename, std::ios::out | std::ios::binary);
 			if(!f.is_open())
 			{//if this happens, the db instance should exit instantly to preserve data pages
@@ -645,8 +640,10 @@ class Database {
 			if(b)
 			{//a new SST was made by the insertion, for now, just flush this new one to file and dont bother with it.
 				flush(b);
+				std::cout << "checkpoint 1.3" << std::endl; 
 				free(b->data);
 				free(b);
+				std::cout << "checkpoint 1.4" << std::endl;
 			}//otherwise insertion was done into an non-full table so we dont need to do more here.
 			std::cout << "checkpoint 1.5" << std::endl;
 			delete(a);

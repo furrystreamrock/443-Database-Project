@@ -1,4 +1,3 @@
-
 #include "database.cpp"
 #include <iostream>
 #include <chrono>
@@ -29,7 +28,9 @@ int main()
 	srand(time(NULL));
 	int store;
 	//db->testReadWrite();
-	for(int i = 0; i < 100; i++)
+	//return 0;
+	
+	for(int i = 0; i < 300; i++)
 	{
 		std::cout << "----------------------------------------------Put " << i << " -------------------------------------------------------" <<std::endl;
 		int k = rand()%5000+1;

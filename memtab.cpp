@@ -432,7 +432,7 @@ static memtab* build_from_file(const char* filename)
 	
 };
 static const int SST_BYTES = 4096 - sizeof(SST) - 30; //just shy of 4kb per sst including metadata
-static const int MAX_ENTRIES = 10;//2 * (SST_BYTES/2) / sizeof(kv_pair);//make this number always even for convenience. 
+static const int MAX_ENTRIES = 8;//2 * (SST_BYTES/2) / sizeof(kv_pair);//make this number always even for convenience. 
 
 struct SST_node
 {
@@ -469,7 +469,7 @@ class SST_directory
 		//if the insertion caused a split, will return an SST of the *NEWLY created table that DOESNT contain the 
 		//just inserted kv_pair. the existing SST will contain it, and the new one will have to be handled.
 		//need to get the table we are about to insert into if its not in the SST
-			
+
 			if(!root)//if this is the first ever insert, make a root sst_node
 			{
 				root = new SST_node();
@@ -500,6 +500,7 @@ class SST_directory
 				else
 					return insert(kv, n->left);
 			}
+
 			if(!n->sst)
 			{
 				std::cerr << "INSERTION ERROR: calling function must make sure sst in buffer!" << std::endl;
@@ -510,18 +511,9 @@ class SST_directory
 			{
 				std::cout << "Case 2" << std::endl;
 				sstInsert(n->sst, kv);
-				n->entries = n->sst->entries;
-				//update range of table if needed
-				if(kv->key > n->sst->maxkey)
-				{
-					n->sst->maxkey = kv->key;
-					n->max = kv->key;
-				}
-				if(kv->key < n->sst->minkey)
-				{
-					n->sst->minkey = kv->key;
-					n->min = kv->key;
-				}
+				std::cout << "Case 2.1" << std::endl;
+				updateSSTNode(n);
+				std::cout << "Case 2.2" << std::endl;
 				return nullptr;
 			}
 			//full, require to split the tree
@@ -558,14 +550,15 @@ class SST_directory
 			else
 			{
 				n->left->sst = n->sst;
-				n->left->sst->maxkey = mid_key-1;
-				n->left->sst->entries = MAX_ENTRIES/2;
+				n->left->sst->maxkey = mid_key-1;				
 				std::memcpy(n->left->sst->data, temp , (MAX_ENTRIES/2)*sizeof(kv_pair));
+				n->left->sst->entries = MAX_ENTRIES/2;
 				sstInsert(n->left->sst, kv);
 				updateSSTNode(n->left);
 				
 				n->right = new SST_node();
 				n->right->sst = new SST();
+				n->right->sst_key = n->right->sst->key;
 				n->right->sst->minkey = mid_key;
 				n->right->sst->maxkey = temp[MAX_ENTRIES-1].key;
 				n->right->sst->entries = MAX_ENTRIES/2;
@@ -623,16 +616,18 @@ class SST_directory
 				std::cerr << "Error, attempting to insert into full SST, insertion incomplete" << std::endl;
 				return;
 			}
-			
 			kv_pair* temp = (kv_pair*)(malloc(MAX_ENTRIES * sizeof(kv_pair)));
+			//std::cout << "ADDR : " << temp << std::endl;
 			std::memcpy(temp, sst->data, MAX_ENTRIES*sizeof(kv_pair));
-			std::memcpy(&(sst->data[top+1]), &(temp[top]), MAX_ENTRIES*sizeof(kv_pair) - top*sizeof(kv_pair));
+			if(top < MAX_ENTRIES - 1)
+				std::memcpy(&(sst->data[top+1]), &(temp[top]), MAX_ENTRIES*sizeof(kv_pair) - top*sizeof(kv_pair));
 			sst->data[top].key = kv->key;
 			sst->data[top].value = kv->value;
-			free(temp);
 			sst->minkey = sst->data[0].key;
 			sst->maxkey = sst->data[sst->entries-1].key;
 			sst->entries++;
+			//std::cout << "ADDR : " << temp << std::endl;
+			//free(temp); //somehow... even though the address for malloc is identical, free segfaults?????????? we will do experiments with memory leak then.
 			return;
 		}
 		
